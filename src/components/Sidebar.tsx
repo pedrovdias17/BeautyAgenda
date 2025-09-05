@@ -8,7 +8,10 @@ import {
   Settings, 
   LogOut,
   Menu,
-  Scissors
+  Scissors,
+  Crown,
+  MessageCircle,
+  FileText
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,11 +33,16 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     { icon: Calendar, label: 'Agenda', path: '/schedule' },
     { icon: MessageSquare, label: 'Clientes', path: '/clients' },
     { icon: Settings, label: 'Configurações', path: '/settings' },
+    { icon: FileText, label: 'Termos e Privacidade', path: '/legal' },
   ];
 
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleWhatsApp = () => {
+    window.open('https://wa.me/5511999999999?text=Olá! Preciso de ajuda com o Beauty Agenda', '_blank');
   };
 
   return (
@@ -62,6 +70,19 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </button>
       </div>
 
+      {/* Upgrade Button */}
+      {isOpen && (
+        <div className="p-4">
+          <button
+            onClick={() => navigate('/upgrade')}
+            className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:from-yellow-500 hover:to-yellow-700 transition-all duration-200 flex items-center justify-center space-x-2"
+          >
+            <Crown size={18} />
+            <span>Fazer Upgrade</span>
+          </button>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="p-4 space-y-2">
         {menuItems.map((item) => {
@@ -87,6 +108,17 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
       {/* User Info & Logout */}
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
+        {/* WhatsApp Support */}
+        <button
+          onClick={handleWhatsApp}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-green-600 hover:bg-green-50 transition-colors mb-3 ${
+            !isOpen && 'justify-center'
+          }`}
+        >
+          <MessageCircle size={20} />
+          {isOpen && <span className="font-medium">Fale Conosco</span>}
+        </button>
+
         {isOpen && (
           <div className="mb-3 p-3 bg-gray-50 rounded-lg">
             <p className="font-medium text-gray-900 text-sm">{user?.name}</p>

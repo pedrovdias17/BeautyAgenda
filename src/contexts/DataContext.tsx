@@ -16,6 +16,8 @@ export interface Service {
   duration: number;
   price: number;
   description: string;
+  requiresSignal: boolean;
+  signalAmount: number;
 }
 
 export interface Appointment {
@@ -84,7 +86,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       professionalId: '1',
       duration: 60,
       price: 80,
-      description: 'Corte feminino com lavagem e finalização'
+      description: 'Corte feminino com lavagem e finalização',
+      requiresSignal: true,
+      signalAmount: 25
     },
     {
       id: '2',
@@ -92,7 +96,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       professionalId: '1',
       duration: 180,
       price: 200,
-      description: 'Coloração completa com produtos premium'
+      description: 'Coloração completa com produtos premium',
+      requiresSignal: true,
+      signalAmount: 60
     },
     {
       id: '3',
@@ -100,7 +106,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       professionalId: '2',
       duration: 45,
       price: 50,
-      description: 'Corte masculino tradicional'
+      description: 'Corte masculino tradicional',
+      requiresSignal: false,
+      signalAmount: 0
     },
     {
       id: '4',
@@ -108,7 +116,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       professionalId: '2',
       duration: 30,
       price: 35,
-      description: 'Barba e bigode com acabamento perfeito'
+      description: 'Barba e bigode com acabamento perfeito',
+      requiresSignal: false,
+      signalAmount: 0
     }
   ]);
 

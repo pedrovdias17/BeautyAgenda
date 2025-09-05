@@ -41,7 +41,8 @@ export default function PublicBooking() {
 
   const selectedServiceData = services.find(s => s.id === selectedService);
   const selectedProfessionalData = professionals.find(p => p.id === selectedProfessional);
-  const signalAmount = selectedServiceData ? Math.round(selectedServiceData.price * 0.3) : 0;
+  const signalAmount = selectedServiceData?.requiresSignal ? selectedServiceData.signalAmount : 0;
+  const requiresPayment = selectedServiceData?.requiresSignal || false;
 
   // Gerar horários disponíveis (simulado)
   const generateTimeSlots = () => {
@@ -196,9 +197,11 @@ export default function PublicBooking() {
                           <div className="text-lg font-semibold text-gray-900">
                             R$ {service.price.toLocaleString()}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            Sinal: R$ {Math.round(service.price * 0.3)}
-                          </div>
+                          {service.requiresSignal && (
+                            <div className="text-sm text-gray-500">
+                              Sinal: R$ {service.signalAmount}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -313,6 +316,9 @@ export default function PublicBooking() {
                     <p><strong>Horário:</strong> {selectedTime}</p>
                     <p><strong>Duração:</strong> {selectedServiceData?.duration} minutos</p>
                     <p><strong>Valor:</strong> R$ {selectedServiceData?.price.toLocaleString()}</p>
+                    {requiresPayment && (
+                      <p><strong>Sinal:</strong> R$ {signalAmount}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -402,8 +408,8 @@ export default function PublicBooking() {
             </div>
           )}
 
-          {/* Step 5: Pagamento do Sinal */}
-          {step === 5 && (
+          {/* Step 5: Pagamento do Sinal ou Confirmação */}
+          {step === 5 && requiresPayment && (
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check size={32} />
@@ -438,8 +444,40 @@ export default function PublicBooking() {
             </div>
           )}
 
-          {/* Step 6: Sucesso */}
-          {step === 6 && (
+          {/* Step 5: Confirmação sem pagamento */}
+          {step === 5 && !requiresPayment && (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check size={32} />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Agendamento Confirmado!</h2>
+              <p className="text-gray-600 mb-6">
+                Seu agendamento foi criado com sucesso. Você receberá uma confirmação no WhatsApp e email.
+              </p>
+              
+              <div className="p-4 bg-green-50 rounded-lg mb-6">
+                <h3 className="font-medium text-green-900 mb-2">Seu Agendamento</h3>
+                <div className="text-sm text-green-800 space-y-1">
+                  <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                  <p><strong>Horário:</strong> {selectedTime}</p>
+                  <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
+                  <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
+                  <p><strong>Local:</strong> {studioInfo.address}</p>
+                  <p><strong>Valor:</strong> R$ {selectedServiceData?.price.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => window.close()}
+                className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
+
+          {/* Step 6: Sucesso após pagamento */}
+          {step === 6 && requiresPayment && (
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check size={32} />

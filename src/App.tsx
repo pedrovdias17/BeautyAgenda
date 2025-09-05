@@ -7,6 +7,8 @@ import Services from './components/Services';
 import Schedule from './components/Schedule';
 import Clients from './components/Clients';
 import Settings from './components/Settings';
+import Upgrade from './components/Upgrade';
+import Legal from './components/Legal';
 import PublicBooking from './components/PublicBooking';
 import Sidebar from './components/Sidebar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -32,6 +34,8 @@ function AppContent() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/upgrade" element={<Upgrade />} />
+          <Route path="/legal" element={<Legal />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

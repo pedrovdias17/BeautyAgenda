@@ -11,7 +11,9 @@ export default function Services() {
     professionalId: '',
     duration: 60,
     price: 0,
-    description: ''
+    description: '',
+    requiresSignal: false,
+    signalAmount: 0
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -32,7 +34,9 @@ export default function Services() {
       professionalId: '',
       duration: 60,
       price: 0,
-      description: ''
+      description: '',
+      requiresSignal: false,
+      signalAmount: 0
     });
     setEditingService(null);
     setIsModalOpen(false);
@@ -124,6 +128,14 @@ export default function Services() {
                   <span>R$ {service.price.toLocaleString()}</span>
                 </div>
               </div>
+
+              {service.requiresSignal && (
+                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-700 font-medium">
+                    Sinal obrigatório: R$ {service.signalAmount}
+                  </p>
+                </div>
+              )}
             </div>
           );
         })}
@@ -227,6 +239,37 @@ export default function Services() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Descrição do serviço..."
                 />
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.requiresSignal}
+                      onChange={(e) => setFormData(prev => ({ ...prev, requiresSignal: e.target.checked }))}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Exigir pagamento de sinal</span>
+                  </label>
+                </div>
+
+                {formData.requiresSignal && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Valor do sinal (R$)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.signalAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, signalAmount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0.00"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex space-x-3 pt-4">
