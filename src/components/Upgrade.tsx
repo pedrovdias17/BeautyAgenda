@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Crown, 
   Check, 
@@ -14,6 +16,7 @@ import {
 
 export default function Upgrade() {
   const [isProcessing, setIsProcessing] = useState(false);
+  const { usuario } = useAuth();
 
   const benefits = [
     {
@@ -61,12 +64,35 @@ export default function Upgrade() {
   const handleUpgrade = async () => {
     setIsProcessing(true);
     
-    // Simular integração com gateway de pagamento
-    setTimeout(() => {
-      alert('Redirecionando para o pagamento...');
-      // Aqui seria feita a integração real com Stripe, Asaas ou Mercado Pago
+    try {
+      if (!usuario) {
+        alert('Erro: usuário não encontrado');
+        return;
+      }
+
+      // Chamar função do Supabase para criar assinatura
+      const { data, error } = await supabase.functions.invoke('criar-assinatura', {
+        body: { usuarioId: usuario.id }
+      });
+
+      if (error) {
+        console.error('Erro ao criar assinatura:', error);
+        alert('Erro ao criar assinatura. Tente novamente.');
+        return;
+      }
+
+      // Redirecionar para página de pagamento do Mercado Pago
+      if (data.subscriptionUrl) {
+        window.location.href = data.subscriptionUrl;
+      } else {
+        alert('Erro ao gerar link de pagamento');
+      }
+    } catch (error) {
+      console.error('Erro inesperado:', error);
+      alert('Erro inesperado. Tente novamente.');
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
   return (

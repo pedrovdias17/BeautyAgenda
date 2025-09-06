@@ -24,7 +24,7 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, usuario } = useAuth();
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
