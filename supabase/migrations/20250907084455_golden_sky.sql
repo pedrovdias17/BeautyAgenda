@@ -1,0 +1,10 @@
+@@ .. @@
+   telefone text,
+   endereco text,
+   slug text UNIQUE NOT NULL,
+   status_assinatura text DEFAULT 'trial' CHECK (status_assinatura IN ('trial', 'active', 'past_due', 'canceled')),
+-  trial_termina_em timestamptz DEFAULT (now() + interval '7 days'),
++  trial_termina_em timestamptz DEFAULT (now() + interval '14 days'),
+   assinatura_id text,
+   mercado_pago_key text,
+   configuracoes jsonb DEFAULT '{}',

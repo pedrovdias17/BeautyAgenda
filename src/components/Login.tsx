@@ -374,7 +374,7 @@ export default function Login() {
         {/* Trial Info */}
         {!isLogin && (
           <div className="mt-6 p-4 bg-green-50 rounded-lg">
-            <p className="text-sm text-green-700 font-medium mb-2">🎉 Teste Grátis por 7 dias!</p>
+            <p className="text-sm text-green-700 font-medium mb-2">🎉 Teste Grátis por 14 dias!</p>
             <p className="text-xs text-green-600">
               Experimente todas as funcionalidades sem compromisso. 
               Não cobramos cartão de crédito no cadastro.

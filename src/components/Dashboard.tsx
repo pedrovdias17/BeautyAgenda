@@ -93,7 +93,7 @@ export default function Dashboard() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
-        {isTrialActive && daysUntilExpiry <= 3 && (
+        {isTrialActive && daysUntilExpiry <= 5 && (
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center space-x-2 text-yellow-800">
               <span className="font-medium">
