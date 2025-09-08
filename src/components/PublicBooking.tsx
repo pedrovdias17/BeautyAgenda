@@ -32,7 +32,7 @@ export default function PublicBooking() {
 
   // Dados do estúdio (normalmente viriam da API)
   const studioInfo = {
-    name: 'Estúdio Beleza & Arte',
+    name: 'AgendPro Demo',
     address: 'Rua das Flores, 123 - São Paulo, SP',
     phone: '(11) 99999-9999',
     rating: 4.8,

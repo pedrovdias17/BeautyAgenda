@@ -35,7 +35,7 @@ serve(async (req) => {
 
     // Criar assinatura no Mercado Pago
     const subscriptionData = {
-      reason: 'Beauty Agenda - Assinatura Mensal',
+      reason: 'AgendPro - Assinatura Mensal',
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',

@@ -49,7 +49,7 @@ export default function Settings() {
   });
 
   const publicUrl = `${window.location.origin}/booking/${settings.customUrl}`;
-  const fullPublicUrl = `https://${settings.customUrl}.beautyagenda.shop`;
+  const fullPublicUrl = `https://${settings.customUrl}.agendpro.shop`;
 
   const tabs = [
     { id: 'profile', label: 'Perfil', icon: User },
@@ -244,6 +244,7 @@ export default function Settings() {
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                       <span className="text-gray-500">.beautyagenda.shop</span>
+                      <span className="text-gray-500">.agendpro.shop</span>
                     </div>
                   </div>
                 </div>

@@ -149,7 +149,7 @@ export default function Upgrade() {
                 </div>
               </div>
               <p className="text-gray-700 italic">
-                "Desde que comecei a usar o Beauty Agenda, meus no-shows caíram 90%. 
+                "Desde que comecei a usar o AgendPro, meus no-shows caíram 90%. 
                 O pagamento automático do sinal mudou completamente meu negócio. 
                 Agora tenho mais tempo para focar no que realmente importa: meus clientes!"
               </p>
