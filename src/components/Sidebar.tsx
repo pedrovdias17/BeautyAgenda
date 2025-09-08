@@ -57,7 +57,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
           {isOpen && (
             <div>
-              <h1 className="font-bold text-gray-900">Beauty Agenda</h1>
+              <h1 className="font-bold text-gray-900">AgendPro</h1>
               <p className="text-xs text-gray-500">{user?.studioName}</p>
             </div>
           )}
@@ -116,7 +116,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           }`}
         >
           <MessageCircle size={20} />
-          {isOpen && <span className="font-medium">Fale Conosco</span>}
+          {isOpen && <span className="font-medium">Suporte</span>}
         </button>
 
         {isOpen && (

@@ -177,7 +177,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-full mb-4">
             <Scissors size={24} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Beauty Agenda</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">AgendPro</h1>
           <p className="text-gray-600">
             {isLogin ? 'Entre na sua conta' : 'Crie sua conta gratuita'}
           </p>
@@ -274,7 +274,7 @@ export default function Login() {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Esta será a URL que seus clientes usarão para agendar
+                    agendpro.shop/
                   </p>
                 </div>
               </>
