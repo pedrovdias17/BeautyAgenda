@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase, Usuario } from '../lib/supabase';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -13,6 +13,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<Usuario>) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -90,40 +91,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (email: string, password: string, nome: string, nomeStudio: string, slug: string) => {
+  // Funcao para login com Google
+  const loginWithGoogle = async () => {
     try {
-      // Verificar se o slug já existe
-      const { data: existingUser } = await supabase
-        .from('usuarios')
-        .select('slug')
-        .eq('slug', slug)
-        .single();
-
-      if (existingUser) {
-        return { success: false, error: 'Este slug já está em uso. Escolha outro.' };
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
         options: {
-          data: {
-            nome,
-            nome_studio: nomeStudio,
-            slug
-          }
-        }
+          redirectTo: 'http://localhost:5173/dashboard', // ou a página que você quiser depois do login
+        },
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        throw error;
       }
 
+      // Supabase já lida com o redirecionamento. O retorno aqui é apenas informativo.
       return { success: true };
-    } catch (error) {
-      return { success: false, error: 'Erro inesperado ao criar conta' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   };
+
+
+const signup = async (email: string, password: string, nome: string, nomeStudio: string, slug: string) => {
+    try {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+
+        if (authError) {
+            console.error('Erro na criação do usuário:', authError);
+            return { success: false, error: authError.message };
+        }
+
+        if (!authData.user) {
+            return { success: false, error: 'Usuário não foi criado.' };
+        }
+
+        const newUserId = authData.user.id;
+        const { data: profileData, error: profileError } = await supabase
+            .from('usuarios')
+            .insert([
+                {
+                    id: newUserId,
+                    email: email,
+                    nome: nome,
+                    nome_studio: nomeStudio,
+                    slug: slug,
+                    status_assinatura: 'trial',
+                    trial_termina_em: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    configuracoes: {},
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+            ]);
+
+        if (profileError) {
+            console.error('Erro ao salvar o perfil:', profileError);
+            return { success: false, error: profileError.message || 'Erro ao salvar perfil.' };
+        }
+
+        console.log('Usuário e perfil criados com sucesso!');
+        return { success: true };
+
+    } catch (error) {
+        console.error('Erro inesperado na função signup:', error);
+        return { success: false, error: 'Erro inesperado ao criar conta' };
+    }
+};
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -176,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!user,
       isLoading,
       login,
+      loginWithGoogle, 
       signup,
       logout,
       resetPassword,

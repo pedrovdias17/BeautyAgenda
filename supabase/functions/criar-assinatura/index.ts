@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
     const { usuarioId } = await req.json()
@@ -39,7 +39,7 @@ serve(async (req) => {
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
-        transaction_amount: 47.00,
+        transaction_amount: 67.00,
         currency_id: 'BRL'
       },
       payer_email: usuario.email,

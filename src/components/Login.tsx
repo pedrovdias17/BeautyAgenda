@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scissors, Eye, EyeOff, Mail, User, Building } from 'lucide-react';
+import { Scissors, Eye, EyeOff, Mail, User, Building, Clock10 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
@@ -15,7 +15,7 @@ export default function Login() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
-  const { login, signup, resetPassword } = useAuth();
+  const { login, signup, resetPassword, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +62,19 @@ export default function Login() {
     } else {
       setError(result.error || 'Erro ao enviar email');
     }
+  };
+
+  // função para lidar com o login do Google
+  const handleGoogleLogin = async () => {
+    setError('');
+    setIsLoading(true);
+    const result = await loginWithGoogle();
+
+    if (!result.success) {
+      setError(result.error || 'Erro ao fazer login com Google');
+      setIsLoading(false); // Só desativa o loading se houver erro
+    }
+    // Em caso de sucesso, o redirecionamento é automático, então não precisamos de setIsLoading(false)
   };
 
   const generateSlug = (studioName: string) => {
@@ -175,7 +188,7 @@ export default function Login() {
         {/* Logo e Título */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-full mb-4">
-            <Scissors size={24} />
+            <Clock10 size={24} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">AgendPro</h1>
           <p className="text-gray-600">
@@ -261,7 +274,7 @@ export default function Login() {
                   </label>
                   <div className="flex items-center">
                     <span className="text-sm text-gray-500 bg-gray-50 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
-                      beautyagenda.shop/
+                      agendpro.shop/
                     </span>
                     <input
                       id="slug"
@@ -273,9 +286,6 @@ export default function Login() {
                       placeholder="meu-studio"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    agendpro.shop/
-                  </p>
                 </div>
               </>
             )}
@@ -338,6 +348,27 @@ export default function Login() {
                 ? (isLogin ? 'Entrando...' : 'Criando conta...') 
                 : (isLogin ? 'Entrar' : 'Criar Conta Gratuita')
               }
+            </button>
+            
+            {/* Separador e botão de login com Google */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-2 text-gray-500">ou</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 focus:ring-4 focus:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 18 19">
+                <path fillRule="evenodd" d="M8.842 18.083a8.8 8.8 0 0 1-8.65-8.948 8.841 8.841 0 0 1 8.717-8.998 8.941 8.941 0 0 1 8.68 8.995v1.623H8.842v-2.28H15.6a7.29 7.29 0 0 0-7.234-7.907 7.292 7.292 0 0 0-7.221 7.828 7.292 7.292 0 0 0 7.221 7.828 7.29 7.29 0 0 0 5.432-2.009l1.758 1.35C15.993 17.027 12.9 18.734 8.842 18.083Z" clipRule="evenodd"/>
+              </svg>
+              <span>Entrar com Google</span>
             </button>
           </form>
 
