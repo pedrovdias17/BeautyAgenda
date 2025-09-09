@@ -101,6 +101,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             >
               <Icon size={20} />
               {isOpen && <span className="font-medium">{item.label}</span>}
+              }
             </button>
           );
         })}
@@ -117,6 +118,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         >
           <MessageCircle size={20} />
           {isOpen && <span className="font-medium">Suporte</span>}
+          }
         </button>
 
         {isOpen && (
@@ -133,6 +135,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         >
           <LogOut size={20} />
           {isOpen && <span className="font-medium">Sair</span>}
+          }
         </button>
       </div>
     </div>
