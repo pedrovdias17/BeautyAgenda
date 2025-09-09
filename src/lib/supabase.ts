@@ -10,9 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Tipos do banco de dados
-export interface Usuario {
-  id: string;
-  email: string;
+export interface UserProfile {
   nome: string;
   nome_studio: string;
   telefone?: string;
@@ -23,13 +21,11 @@ export interface Usuario {
   assinatura_id?: string;
   mercado_pago_key?: string;
   configuracoes: Record<string, any>;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Profissional {
   id: string;
-  usuario_id: string;
+  user_id: string;
   nome: string;
   email?: string;
   telefone?: string;
@@ -41,7 +37,7 @@ export interface Profissional {
 
 export interface Servico {
   id: string;
-  usuario_id: string;
+  user_id: string;
   profissional_id: string;
   nome: string;
   descricao: string;
@@ -56,7 +52,7 @@ export interface Servico {
 
 export interface Cliente {
   id: string;
-  usuario_id: string;
+  user_id: string;
   nome: string;
   telefone: string;
   email?: string;
@@ -68,7 +64,7 @@ export interface Cliente {
 
 export interface Agendamento {
   id: string;
-  usuario_id: string;
+  user_id: string;
   cliente_id: string;
   servico_id: string;
   profissional_id: string;
@@ -86,7 +82,7 @@ export interface Agendamento {
 
 export interface HorarioFuncionamento {
   id: string;
-  usuario_id: string;
+  user_id: string;
   dia_semana: number;
   ativo: boolean;
   hora_inicio: string;
@@ -95,3 +91,27 @@ export interface HorarioFuncionamento {
   created_at: string;
   updated_at: string;
 }
+
+// Funções auxiliares para trabalhar com perfil do usuário
+export const getUserProfile = (user: any): UserProfile => {
+  const metadata = user?.user_metadata || {};
+  return {
+    nome: metadata.nome || '',
+    nome_studio: metadata.nome_studio || '',
+    telefone: metadata.telefone || '',
+    endereco: metadata.endereco || '',
+    slug: metadata.slug || '',
+    status_assinatura: metadata.status_assinatura || 'trial',
+    trial_termina_em: metadata.trial_termina_em || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    assinatura_id: metadata.assinatura_id || '',
+    mercado_pago_key: metadata.mercado_pago_key || '',
+    configuracoes: metadata.configuracoes || {}
+  };
+};
+
+export const updateUserProfile = async (updates: Partial<UserProfile>) => {
+  const { data, error } = await supabase.auth.updateUser({
+    data: updates
+  });
+  return { data, error };
+};

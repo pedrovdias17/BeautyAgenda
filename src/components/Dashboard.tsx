@@ -1,6 +1,7 @@
 import React from 'react';
 import SubscriptionGuard from './SubscriptionGuard';
 import { useSubscriptionCheck } from '../hooks/useSubscriptionCheck';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Calendar, 
   DollarSign, 
@@ -16,6 +17,7 @@ import { useData } from '../contexts/DataContext';
 export default function Dashboard() {
   const { appointments, clients, services, professionals } = useData();
   const { isTrialActive, daysUntilExpiry } = useSubscriptionCheck();
+  const { userProfile } = useAuth();
 
   const today = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(apt => apt.date === today);
@@ -93,6 +95,21 @@ export default function Dashboard() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600">Bem-vindo, {userProfile?.nome}!</p>
+          </div>
+          {userProfile && (
+            <div className="text-right">
+              <p className="text-sm text-gray-500">{userProfile.nome_studio}</p>
+              <p className="text-xs text-gray-400">
+                Status: {userProfile.status_assinatura === 'trial' ? 'Trial' : 'Ativo'}
+              </p>
+            </div>
+          )}
+        </div>
+        
         {isTrialActive && daysUntilExpiry <= 5 && (
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center space-x-2 text-yellow-800">
@@ -103,8 +120,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-600">Visão geral do seu negócio</p>
       </div>
 
       {/* Stats Grid */}
