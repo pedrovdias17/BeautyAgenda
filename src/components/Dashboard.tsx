@@ -1,4 +1,6 @@
 import React from 'react';
+import SubscriptionGuard from './SubscriptionGuard';
+import { useSubscriptionCheck } from '../hooks/useSubscriptionCheck';
 import { 
   Calendar, 
   DollarSign, 
@@ -13,6 +15,7 @@ import { useData } from '../contexts/DataContext';
 
 export default function Dashboard() {
   const { appointments, clients, services, professionals } = useData();
+  const { isTrialActive, daysUntilExpiry } = useSubscriptionCheck();
 
   const today = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(apt => apt.date === today);
@@ -90,6 +93,16 @@ export default function Dashboard() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
+        {isTrialActive && daysUntilExpiry <= 5 && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-yellow-800">
+              <span className="font-medium">
+                ⚠️ Seu trial expira em {daysUntilExpiry} dias. 
+                <a href="/upgrade" className="underline ml-1">Faça upgrade agora!</a>
+              </span>
+            </div>
+          </div>
+        )}
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
         <p className="text-gray-600">Visão geral do seu negócio</p>
       </div>

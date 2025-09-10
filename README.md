@@ -1,1 +1,1 @@
-BeautyAgenda
+AgendPro

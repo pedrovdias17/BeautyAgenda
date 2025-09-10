@@ -58,7 +58,7 @@ export default function Legal() {
                 <section>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Descrição do Serviço</h3>
                   <p>
-                    O Beauty Agenda é uma plataforma de agendamento online destinada a salões de beleza, 
+                    O AgendPro é uma plataforma de agendamento online destinada a salões de beleza, 
                     barbearias e profissionais da área estética. Oferecemos ferramentas para:
                   </p>
                   <ul className="list-disc list-inside mt-2 space-y-1">
@@ -113,7 +113,7 @@ export default function Legal() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">7. Contato</h3>
                   <p>
                     Para dúvidas sobre estes termos, entre em contato conosco através do WhatsApp 
-                    disponível na plataforma ou pelo email: contato@beautyagenda.com
+                    disponível na plataforma ou pelo email: contato@agendpro.com
                   </p>
                 </section>
               </div>
@@ -245,7 +245,7 @@ export default function Legal() {
                     contato conosco:
                   </p>
                   <ul className="list-none mt-2 space-y-1">
-                    <li><strong>Email:</strong> privacidade@beautyagenda.com</li>
+                    <li><strong>Email:</strong> privacidade@agendpro.com</li>
                     <li><strong>WhatsApp:</strong> Disponível na plataforma</li>
                     <li><strong>Endereço:</strong> [Endereço da empresa]</li>
                   </ul>
