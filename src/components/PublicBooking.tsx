@@ -58,33 +58,39 @@ export default function PublicBooking() {
 
   const timeSlots = generateTimeSlots();
 
-  // Filtrar serviços por profissional
-  const availableServices = selectedProfessional 
-    ? services.filter(s => s.professionalId === selectedProfessional)
-    : services;
-
-  // Filtrar profissionais por serviço
-  const availableProfessionals = selectedService
-    ? professionals.filter(p => services.some(s => s.id === selectedService && s.professionalId === p.id))
-    : professionals;
+  // --- LÓGICA DE FILTRO CORRIGIDA ---
+  const availableProfessionals = (() => {
+    // Se nenhum serviço estiver selecionado, mostra todos os profissionais.
+    if (!selectedService) {
+      return professionals;
+    }
+    // Encontra o serviço específico que foi selecionado.
+    const service = services.find(s => s.id === selectedService);
+    // Se o serviço não for encontrado, retorna uma lista vazia por segurança.
+    if (!service) {
+      return [];
+    }
+    // Filtra a lista de profissionais para retornar APENAS aquele que está ligado ao serviço.
+    return professionals.filter(p => p.id === service.professionalId);
+  })();
 
   const handleServiceSelect = (serviceId: string) => {
     setSelectedService(serviceId);
     const service = services.find(s => s.id === serviceId);
-    if (service && !selectedProfessional) {
+    // Pré-seleciona o profissional correto ao escolher o serviço
+    if (service) {
       setSelectedProfessional(service.professionalId);
     }
   };
 
-  const handleNext = () => {
-    setStep(step + 1);
-  };
-
-  const handleBack = () => {
-    setStep(step - 1);
-  };
+  const handleNext = () => setStep(step + 1);
+  const handleBack = () => setStep(step - 1);
 
   const handleSubmit = async () => {
+    if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime) {
+      alert('Por favor, preencha todos os dados do agendamento.');
+      return;
+    }
     setIsSubmitting(true);
     
     try {
@@ -92,17 +98,18 @@ export default function PublicBooking() {
         clientName: clientData.name,
         clientPhone: clientData.phone,
         clientEmail: clientData.email,
-        serviceId: selectedService,
-        professionalId: selectedProfessional,
-        date: selectedDate,
-        time: selectedTime,
+        servico_id: selectedService,
+        profissional_id: selectedProfessional,
+        data_agendamento: selectedDate,
+        hora_agendamento: selectedTime,
         status: 'pending',
-        paymentStatus: 'pending',
-        signalAmount
+        status_pagamento: 'pending',
+        valor_sinal: signalAmount
       });
       
-      setStep(5); // Ir para tela de pagamento
+      setStep(5);
     } catch (error) {
+      console.error('Falha ao criar agendamento:', error);
       alert('Erro ao criar agendamento. Tente novamente.');
     } finally {
       setIsSubmitting(false);
@@ -110,10 +117,8 @@ export default function PublicBooking() {
   };
 
   const handlePayment = () => {
-    // Simular integração com Mercado Pago
     alert('Redirecionando para o pagamento via Mercado Pago...');
-    // Aqui seria feita a chamada para n8n/webhook que gera o link de pagamento
-    setStep(6); // Sucesso
+    setStep(6);
   };
 
   return (
@@ -155,7 +160,7 @@ export default function PublicBooking() {
           <div className="mt-2 h-2 bg-gray-200 rounded-full">
             <div 
               className="h-full bg-blue-600 rounded-full transition-all duration-300"
-              style={{ width: `${(step / 5) * 100}%` }}
+              style={{ width: `${((step - 1) / 4) * 100}%` }}
             />
           </div>
         </div>
@@ -166,7 +171,7 @@ export default function PublicBooking() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha seu serviço</h2>
               <div className="space-y-4">
-                {availableServices.map((service) => {
+                {services.map((service) => {
                   const professional = professionals.find(p => p.id === service.professionalId);
                   return (
                     <button
@@ -257,86 +262,46 @@ export default function PublicBooking() {
                 ))}
               </div>
               <div className="mt-6 flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Voltar
-                </button>
-                <button
-                  onClick={handleNext}
-                  disabled={!selectedProfessional}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Continuar
-                </button>
+                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors">Voltar</button>
+                <button onClick={handleNext} disabled={!selectedProfessional} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Continuar</button>
               </div>
             </div>
           )}
 
           {/* Step 3: Selecionar Data e Hora */}
           {step === 3 && (
-            <div>
+             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha data e horário</h2>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
                 </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Horário</label>
-                  <select
-                    value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
+                  <select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <option value="">Selecione um horário</option>
-                    {timeSlots.map((time) => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
+                    {timeSlots.map((time) => (<option key={time} value={time}>{time}</option>))}
                   </select>
                 </div>
               </div>
-
               {selectedDate && selectedTime && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                   <h3 className="font-medium text-blue-900 mb-2">Resumo do Agendamento</h3>
                   <div className="text-sm text-blue-800 space-y-1">
                     <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
                     <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
-                    <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                    <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p>
                     <p><strong>Horário:</strong> {selectedTime}</p>
                     <p><strong>Duração:</strong> {selectedServiceData?.duration} minutos</p>
                     <p><strong>Valor:</strong> R$ {selectedServiceData?.price.toLocaleString()}</p>
-                    {requiresPayment && (
-                      <p><strong>Sinal:</strong> R$ {signalAmount}</p>
-                    )}
+                    {requiresPayment && (<p><strong>Sinal:</strong> R$ {signalAmount}</p>)}
                   </div>
                 </div>
               )}
-
               <div className="mt-6 flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Voltar
-                </button>
-                <button
-                  onClick={handleNext}
-                  disabled={!selectedDate || !selectedTime}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Continuar
-                </button>
+                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors">Voltar</button>
+                <button onClick={handleNext} disabled={!selectedDate || !selectedTime} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Continuar</button>
               </div>
             </div>
           )}
@@ -345,166 +310,65 @@ export default function PublicBooking() {
           {step === 4 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Seus dados</h2>
-              
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nome completo
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={clientData.name}
-                    onChange={(e) => setClientData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Digite seu nome completo"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome completo</label>
+                  <input type="text" required value={clientData.name} onChange={(e) => setClientData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Digite seu nome completo"/>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    WhatsApp
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={clientData.phone}
-                    onChange={(e) => setClientData(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="(11) 99999-9999"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label>
+                  <input type="tel" required value={clientData.phone} onChange={(e) => setClientData(prev => ({ ...prev, phone: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="(11) 99999-9999"/>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={clientData.email}
-                    onChange={(e) => setClientData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="seu@email.com"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input type="email" required value={clientData.email} onChange={(e) => setClientData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="seu@email.com"/>
                 </div>
               </div>
-
               <div className="mt-6 flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Voltar
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!clientData.name || !clientData.phone || !clientData.email || isSubmitting}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
+                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors">Voltar</button>
+                <button onClick={handleSubmit} disabled={!clientData.name || !clientData.phone || !clientData.email || isSubmitting} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                   {isSubmitting ? 'Criando...' : 'Confirmar Agendamento'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Step 5: Pagamento do Sinal ou Confirmação */}
-          {step === 5 && requiresPayment && (
+          {/* Step 5 e 6: Confirmação e Pagamento */}
+          {(step === 5 || step === 6) && (
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check size={32} />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Agendamento Criado!</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                {step === 5 && !requiresPayment ? 'Agendamento Confirmado!' : 'Tudo certo!'}
+                {step === 5 && requiresPayment && 'Agendamento Criado!'}
+              </h2>
               <p className="text-gray-600 mb-6">
-                Para confirmar seu agendamento, é necessário pagar o sinal de <strong>R$ {signalAmount}</strong>
-              </p>
-              
-              <div className="p-4 bg-gray-50 rounded-lg mb-6">
-                <h3 className="font-medium text-gray-900 mb-2">Detalhes do Agendamento</h3>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
-                  <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
-                  <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
-                  <p><strong>Horário:</strong> {selectedTime}</p>
-                  <p><strong>Cliente:</strong> {clientData.name}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={handlePayment}
-                className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-              >
-                <DollarSign size={20} />
-                <span>Pagar Sinal - R$ {signalAmount}</span>
-              </button>
-              
-              <p className="text-xs text-gray-500 mt-4">
-                Pagamento seguro via Mercado Pago
-              </p>
-            </div>
-          )}
-
-          {/* Step 5: Confirmação sem pagamento */}
-          {step === 5 && !requiresPayment && (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check size={32} />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Agendamento Confirmado!</h2>
-              <p className="text-gray-600 mb-6">
-                Seu agendamento foi criado com sucesso. Você receberá uma confirmação no WhatsApp e email.
+                {step === 5 && requiresPayment && `Para confirmar seu agendamento, é necessário pagar o sinal de R$ ${signalAmount}.`}
+                {step === 5 && !requiresPayment && 'Seu agendamento foi criado com sucesso.'}
+                {step === 6 && 'Seu agendamento foi confirmado e o sinal foi pago com sucesso.'}
               </p>
               
               <div className="p-4 bg-green-50 rounded-lg mb-6">
-                <h3 className="font-medium text-green-900 mb-2">Seu Agendamento</h3>
-                <div className="text-sm text-green-800 space-y-1">
-                  <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
-                  <p><strong>Horário:</strong> {selectedTime}</p>
-                  <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
-                  <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
-                  <p><strong>Local:</strong> {studioInfo.address}</p>
-                  <p><strong>Valor:</strong> R$ {selectedServiceData?.price.toLocaleString()}</p>
-                </div>
+                 <h3 className="font-medium text-green-900 mb-2">Seu Agendamento</h3>
+                 <div className="text-sm text-green-800 space-y-1">
+                   <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p>
+                   <p><strong>Horário:</strong> {selectedTime}</p>
+                   <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
+                   <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
+                 </div>
               </div>
 
-              <button
-                onClick={() => window.close()}
-                className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          )}
+              {step === 5 && requiresPayment && (
+                <button onClick={handlePayment} className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center space-x-2">
+                  <DollarSign size={20} />
+                  <span>Pagar Sinal - R$ {signalAmount}</span>
+                </button>
+              )}
 
-          {/* Step 6: Sucesso após pagamento */}
-          {step === 6 && requiresPayment && (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check size={32} />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Tudo certo!</h2>
-              <p className="text-gray-600 mb-6">
-                Seu agendamento foi confirmado e o sinal foi pago com sucesso.
-                Você receberá uma confirmação no WhatsApp e email.
-              </p>
-              
-              <div className="p-4 bg-green-50 rounded-lg mb-6">
-                <h3 className="font-medium text-green-900 mb-2">Seu Agendamento</h3>
-                <div className="text-sm text-green-800 space-y-1">
-                  <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
-                  <p><strong>Horário:</strong> {selectedTime}</p>
-                  <p><strong>Serviço:</strong> {selectedServiceData?.name}</p>
-                  <p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p>
-                  <p><strong>Local:</strong> {studioInfo.address}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => window.close()}
-                className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Fechar
-              </button>
+              {(step === 6 || (step === 5 && !requiresPayment)) && (
+                <button onClick={() => window.close()} className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors">Fechar</button>
+              )}
             </div>
           )}
         </div>

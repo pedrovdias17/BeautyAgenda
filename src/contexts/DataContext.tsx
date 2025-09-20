@@ -1,7 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
+// --- INTERFACES CORRIGIDAS ---
 export interface Professional {
   id: string;
+  usuario_id: string;
   name: string;
   email: string;
   phone: string;
@@ -11,6 +15,7 @@ export interface Professional {
 
 export interface Service {
   id: string;
+  usuario_id: string;
   name: string;
   professionalId: string;
   duration: number;
@@ -18,217 +23,219 @@ export interface Service {
   description: string;
   requiresSignal: boolean;
   signalAmount: number;
+  active: boolean;
 }
 
 export interface Appointment {
   id: string;
+  usuario_id: string;
+  cliente_id: string;
+  servico_id: string;
+  profissional_id: string;
+  data_agendamento: string;
+  hora_agendamento: string;
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  status_pagamento: 'pending' | 'partial' | 'paid';
+  valor_sinal?: number;
   clientName: string;
   clientPhone: string;
   clientEmail: string;
-  serviceId: string;
-  professionalId: string;
-  date: string;
-  time: string;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
-  paymentStatus: 'pending' | 'partial' | 'paid';
-  signalAmount?: number;
 }
 
 export interface Client {
   id: string;
-  name: string;
-  phone: string;
+  usuario_id: string;
+  nome: string;
+  telefone: string;
   email: string;
-  appointments: number;
-  lastVisit: string;
+  total_agendamentos: number;
+  ultima_visita: string;
 }
 
+// --- TIPO DO CONTEXTO ---
 interface DataContextType {
   professionals: Professional[];
   services: Service[];
   appointments: Appointment[];
   clients: Client[];
-  addProfessional: (professional: Omit<Professional, 'id'>) => void;
-  updateProfessional: (id: string, professional: Partial<Professional>) => void;
-  deleteProfessional: (id: string) => void;
-  addService: (service: Omit<Service, 'id'>) => void;
-  updateService: (id: string, service: Partial<Service>) => void;
-  deleteService: (id: string) => void;
-  addAppointment: (appointment: Omit<Appointment, 'id'>) => void;
-  updateAppointment: (id: string, appointment: Partial<Appointment>) => void;
-  deleteAppointment: (id: string) => void;
+  isLoading: boolean;
+  addProfessional: (professional: Omit<Professional, 'id' | 'usuario_id'>) => Promise<void>;
+  updateProfessional: (id: string, professional: Partial<Professional>) => Promise<void>;
+  deleteProfessional: (id: string) => Promise<void>;
+  addService: (service: Omit<Service, 'id' | 'usuario_id' | 'active'>) => Promise<void>;
+  updateService: (id: string, service: Partial<Service>) => Promise<void>;
+  deleteService: (id: string) => Promise<void>;
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => Promise<void>;
+  updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<void>;
+  deleteAppointment: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [professionals, setProfessionals] = useState<Professional[]>([
-    {
-      id: '1',
-      name: 'Maria Santos',
-      email: 'maria@studio.com',
-      phone: '(11) 99999-9999',
-      specialties: ['Corte Feminino', 'Coloração', 'Tratamentos']
-    },
-    {
-      id: '2',
-      name: 'Carlos Oliveira',
-      email: 'carlos@studio.com',
-      phone: '(11) 88888-8888',
-      specialties: ['Corte Masculino', 'Barba', 'Bigode']
+  const { user } = useAuth();
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    if (!user) {
+        setIsLoading(false);
+        return;
     }
-  ]);
+    setIsLoading(true);
 
-  const [services, setServices] = useState<Service[]>([
-    {
-      id: '1',
-      name: 'Corte + Lavagem',
-      professionalId: '1',
-      duration: 60,
-      price: 80,
-      description: 'Corte feminino com lavagem e finalização',
-      requiresSignal: true,
-      signalAmount: 25
-    },
-    {
-      id: '2',
-      name: 'Coloração Completa',
-      professionalId: '1',
-      duration: 180,
-      price: 200,
-      description: 'Coloração completa com produtos premium',
-      requiresSignal: true,
-      signalAmount: 60
-    },
-    {
-      id: '3',
-      name: 'Corte Masculino',
-      professionalId: '2',
-      duration: 45,
-      price: 50,
-      description: 'Corte masculino tradicional',
-      requiresSignal: false,
-      signalAmount: 0
-    },
-    {
-      id: '4',
-      name: 'Barba + Bigode',
-      professionalId: '2',
-      duration: 30,
-      price: 35,
-      description: 'Barba e bigode com acabamento perfeito',
-      requiresSignal: false,
-      signalAmount: 0
+    try {
+        const { data: proData, error: proError } = await supabase.from('profissionais').select('*').eq('usuario_id', user.id);
+        if (proError) console.error('Erro ao buscar profissionais:', proError);
+        setProfessionals(proData || []);
+
+        const { data: servicesData, error: servicesError } = await supabase.from('servicos').select('*').eq('usuario_id', user.id);
+        if (servicesError) console.error('Erro ao buscar serviços:', servicesError);
+        setServices(servicesData || []);
+
+        const { data: appointmentsData, error: appointmentsError } = await supabase.from('agendamentos').select('*').eq('usuario_id', user.id);
+        if (appointmentsError) console.error('Erro ao buscar agendamentos:', appointmentsError);
+        setAppointments(appointmentsData || []);
+
+        const { data: clientsData, error: clientsError } = await supabase.from('clientes').select('*').eq('usuario_id', user.id);
+        if (clientsError) console.error('Erro ao buscar clientes:', clientsError);
+        setClients(clientsData || []);
+
+    } catch (error) {
+        console.error('Erro inesperado ao buscar dados:', error);
+    } finally {
+        setIsLoading(false);
     }
-  ]);
+  }, [user]);
 
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      clientName: 'Ana Silva',
-      clientPhone: '(11) 77777-7777',
-      clientEmail: 'ana@email.com',
-      serviceId: '1',
-      professionalId: '1',
-      date: '2025-01-20',
-      time: '10:00',
-      status: 'confirmed',
-      paymentStatus: 'partial',
-      signalAmount: 25
-    },
-    {
-      id: '2',
-      clientName: 'Pedro Costa',
-      clientPhone: '(11) 66666-6666',
-      clientEmail: 'pedro@email.com',
-      serviceId: '3',
-      professionalId: '2',
-      date: '2025-01-20',
-      time: '14:00',
-      status: 'pending',
-      paymentStatus: 'pending'
+  useEffect(() => {
+    if (user) {
+        fetchData();
     }
-  ]);
+  }, [user, fetchData]);
 
-  const [clients, setClients] = useState<Client[]>([
-    {
-      id: '1',
-      name: 'Ana Silva',
-      phone: '(11) 77777-7777',
-      email: 'ana@email.com',
-      appointments: 5,
-      lastVisit: '2025-01-15'
-    },
-    {
-      id: '2',
-      name: 'Pedro Costa',
-      phone: '(11) 66666-6666',
-      email: 'pedro@email.com',
-      appointments: 3,
-      lastVisit: '2025-01-10'
-    }
-  ]);
-
-  const addProfessional = (professional: Omit<Professional, 'id'>) => {
-    const newProfessional = {
-      ...professional,
-      id: Date.now().toString()
-    };
-    setProfessionals(prev => [...prev, newProfessional]);
+  // --- Funções para Profissionais ---
+  const addProfessional = async (professional: Omit<Professional, 'id' | 'usuario_id'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('profissionais').insert({ ...professional, usuario_id: user.id }).select();
+    if (error) console.error('Erro ao adicionar profissional:', error);
+    if (data) await fetchData();
   };
 
-  const updateProfessional = (id: string, professional: Partial<Professional>) => {
-    setProfessionals(prev => prev.map(p => p.id === id ? { ...p, ...professional } : p));
+  const updateProfessional = async (id: string, professional: Partial<Professional>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('profissionais').update(professional).eq('id', id).select();
+    if (error) console.error('Erro ao atualizar profissional:', error);
+    if (data) await fetchData();
   };
 
-  const deleteProfessional = (id: string) => {
-    setProfessionals(prev => prev.filter(p => p.id !== id));
+  const deleteProfessional = async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('profissionais').delete().eq('id', id);
+    if (error) console.error('Erro ao deletar profissional:', error);
+    else await fetchData();
+  };
+  
+  // --- Funções para Serviços ---
+  const addService = async (service: Omit<Service, 'id' | 'usuario_id' | 'active'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('servicos').insert({ ...service, usuario_id: user.id, active: true }).select();
+    if (error) console.error('Erro ao adicionar serviço:', error);
+    if (data) await fetchData();
   };
 
-  const addService = (service: Omit<Service, 'id'>) => {
-    const newService = {
-      ...service,
-      id: Date.now().toString()
-    };
-    setServices(prev => [...prev, newService]);
+  const updateService = async (id: string, service: Partial<Service>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('servicos').update(service).eq('id', id).select();
+    if (error) console.error('Erro ao atualizar serviço:', error);
+    if (data) await fetchData();
   };
 
-  const updateService = (id: string, service: Partial<Service>) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, ...service } : s));
+  const deleteService = async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('servicos').delete().eq('id', id);
+    if (error) console.error('Erro ao deletar serviço:', error);
+    else await fetchData();
   };
-
-  const deleteService = (id: string) => {
-    setServices(prev => prev.filter(s => s.id !== id));
-  };
-
-  const addAppointment = (appointment: Omit<Appointment, 'id'>) => {
-    const newAppointment = {
-      ...appointment,
-      id: Date.now().toString()
-    };
-    setAppointments(prev => [...prev, newAppointment]);
+  
+  // --- Funções para Agendamentos e Clientes (LÓGICA CORRIGIDA) ---
+  const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
+    if (!user) return;
     
-    // Adicionar cliente se não existir
-    const existingClient = clients.find(c => c.phone === appointment.clientPhone);
-    if (!existingClient) {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        name: appointment.clientName,
-        phone: appointment.clientPhone,
-        email: appointment.clientEmail,
-        appointments: 1,
-        lastVisit: appointment.date
+    let clientRecord = clients.find(c => c.telefone === appointment.clientPhone);
+    
+    if (!clientRecord) {
+      const { data: newClientData, error: clientError } = await supabase
+        .from('clientes')
+        .insert({
+          usuario_id: user.id,
+          nome: appointment.clientName,
+          telefone: appointment.clientPhone,
+          email: appointment.clientEmail,
+          total_agendamentos: 1,
+          ultima_visita: appointment.data_agendamento,
+        })
+        .select()
+        .single();
+
+      if (clientError) {
+        console.error('Erro ao criar novo cliente:', clientError);
+        return;
+      }
+      clientRecord = newClientData;
+    } else {
+      const { error: updateError } = await supabase
+        .from('clientes')
+        .update({
+          total_agendamentos: clientRecord.total_agendamentos + 1,
+          ultima_visita: appointment.data_agendamento,
+        })
+        .eq('id', clientRecord.id);
+
+      if (updateError) console.error('Erro ao atualizar cliente existente:', updateError);
+    }
+
+    if (clientRecord) {
+      const serviceDetails = services.find(s => s.id === appointment.servico_id);
+      const appointmentDataForDB = {
+        usuario_id: user.id,
+        cliente_id: clientRecord.id,
+        servico_id: appointment.servico_id,
+        profissional_id: appointment.profissional_id,
+        data_agendamento: appointment.data_agendamento,
+        hora_agendamento: appointment.hora_agendamento,
+        status: appointment.status,
+        status_pagamento: appointment.status_pagamento,
+        valor_sinal: appointment.valor_sinal,
+        valor_total: serviceDetails?.price || 0
       };
-      setClients(prev => [...prev, newClient]);
+
+      const { data, error } = await supabase.from('agendamentos').insert(appointmentDataForDB).select();
+
+      if (error) {
+        console.error('Erro ao adicionar agendamento:', error);
+      } else {
+        console.log('Agendamento criado com sucesso:', data);
+        await fetchData();
+      }
     }
   };
 
-  const updateAppointment = (id: string, appointment: Partial<Appointment>) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...appointment } : a));
+  const updateAppointment = async (id: string, appointmentUpdate: Partial<Appointment>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('agendamentos').update(appointmentUpdate).eq('id', id).select();
+    if (error) console.error('Erro ao atualizar agendamento:', error);
+    if (data) await fetchData();
   };
 
-  const deleteAppointment = (id: string) => {
-    setAppointments(prev => prev.filter(a => a.id !== id));
+  const deleteAppointment = async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('agendamentos').delete().eq('id', id);
+    if (error) console.error('Erro ao deletar agendamento:', error);
+    else await fetchData();
   };
 
   return (
@@ -237,6 +244,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       services,
       appointments,
       clients,
+      isLoading,
       addProfessional,
       updateProfessional,
       deleteProfessional,
