@@ -9,7 +9,7 @@ export interface Professional {
   name: string;
   email: string;
   phone: string;
-  specialties: string[];
+  specialties?: string[];
   avatar?: string;
 }
 
@@ -162,44 +162,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
   
   // --- Funções para Agendamentos e Clientes (LÓGICA CORRIGIDA) ---
-  const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
+// Dentro de src/contexts/DataContext.tsx
+
+// Dentro de src/contexts/DataContext.tsx
+
+const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
     if (!user) return;
-    
+
+    // --- Lógica de Cliente (permanece a mesma) ---
     let clientRecord = clients.find(c => c.telefone === appointment.clientPhone);
-    
     if (!clientRecord) {
-      const { data: newClientData, error: clientError } = await supabase
-        .from('clientes')
-        .insert({
+      const { data: newClientData, error: clientError } = await supabase.from('clientes').insert({
           usuario_id: user.id,
           nome: appointment.clientName,
           telefone: appointment.clientPhone,
           email: appointment.clientEmail,
           total_agendamentos: 1,
           ultima_visita: appointment.data_agendamento,
-        })
-        .select()
-        .single();
-
-      if (clientError) {
-        console.error('Erro ao criar novo cliente:', clientError);
-        return;
-      }
+        }).select().single();
+      if (clientError) { console.error('Erro ao criar novo cliente:', clientError); return; }
       clientRecord = newClientData;
     } else {
-      const { error: updateError } = await supabase
-        .from('clientes')
-        .update({
+      const { error: updateError } = await supabase.from('clientes').update({
           total_agendamentos: clientRecord.total_agendamentos + 1,
           ultima_visita: appointment.data_agendamento,
-        })
-        .eq('id', clientRecord.id);
-
+        }).eq('id', clientRecord.id);
       if (updateError) console.error('Erro ao atualizar cliente existente:', updateError);
     }
 
     if (clientRecord) {
       const serviceDetails = services.find(s => s.id === appointment.servico_id);
+      const professionalDetails = professionals.find(p => p.id === appointment.profissional_id);
+
       const appointmentDataForDB = {
         usuario_id: user.id,
         cliente_id: clientRecord.id,
@@ -207,22 +201,61 @@ export function DataProvider({ children }: { children: ReactNode }) {
         profissional_id: appointment.profissional_id,
         data_agendamento: appointment.data_agendamento,
         hora_agendamento: appointment.hora_agendamento,
-        status: appointment.status,
-        status_pagamento: appointment.status_pagamento,
+        status: 'pending',
+        status_pagamento: serviceDetails?.requiresSignal ? 'pending' : 'paid',
         valor_sinal: appointment.valor_sinal,
         valor_total: serviceDetails?.price || 0
       };
 
-      const { data, error } = await supabase.from('agendamentos').insert(appointmentDataForDB).select();
+      const { data: newAppointment, error } = await supabase
+        .from('agendamentos')
+        .insert(appointmentDataForDB)
+        .select()
+        .single();
 
       if (error) {
         console.error('Erro ao adicionar agendamento:', error);
-      } else {
-        console.log('Agendamento criado com sucesso:', data);
-        await fetchData();
+        return;
       }
+      
+      console.log('Agendamento salvo no banco:', newAppointment);
+      
+      if (newAppointment) {
+        console.log('Disparando webhook central para o n8n...');
+        
+        const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+
+        if (!webhookUrl) {
+          console.error('URL do webhook do n8n não configurada!');
+        } else {
+          const payload = {
+            ownerId: user.id,
+            appointmentId: newAppointment.id,
+            clientName: clientRecord.nome,
+            clientPhone: clientRecord.telefone,
+            serviceName: serviceDetails?.name || 'N/A',
+            professionalName: professionalDetails?.name || 'N/A',
+            requiresSignal: serviceDetails?.requiresSignal || false, // A info para o "IF" do n8n
+            signalAmount: serviceDetails?.signalAmount || 0,
+            totalAmount: serviceDetails?.price || 0
+          };
+
+          fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).then(response => {
+            if (response.ok) console.log('Webhook para n8n enviado com sucesso!');
+            else console.error('Falha ao enviar webhook para n8n:', response.statusText);
+          }).catch(webhookError => {
+            console.error('Erro de rede ao tentar enviar webhook:', webhookError);
+          });
+        }
+      }
+
+      await fetchData(); // Recarrega os dados para atualizar a UI
     }
-  };
+};
 
   const updateAppointment = async (id: string, appointmentUpdate: Partial<Appointment>) => {
     if (!user) return;
