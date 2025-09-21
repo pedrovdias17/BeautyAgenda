@@ -2,23 +2,21 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import { 
   Settings as SettingsIcon, 
   User, 
-  Bell, 
   CreditCard, 
   Clock, 
   Globe,
   Save,
-  Eye,
   Copy,
   ExternalLink,
   Plus,
   Trash2,
   FileText,
-  Shield
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { Usuario } from '../lib/supabase'; // Importando a interface
+import { Usuario } from '../lib/supabase';
 
-// Componente para exibir mensagens de feedback (sucesso/erro)
 function FormMessage({ type, text }: { type: 'success' | 'error', text: string }) {
   const baseClasses = "text-sm p-3 rounded-lg my-4";
   const typeClasses = type === 'success' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
@@ -29,7 +27,6 @@ export default function Settings() {
   const { usuario, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   
-  // Estado inicial padrão para as configurações
   const [settings, setSettings] = useState({
     studioName: '',
     ownerName: '',
@@ -55,8 +52,8 @@ export default function Settings() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [isKeyVisible, setIsKeyVisible] = useState(false);
 
-  // Efeito para preencher o formulário com dados do banco de dados quando o usuário é carregado
   useEffect(() => {
     if (usuario) {
       setSettings(prev => ({
@@ -67,7 +64,6 @@ export default function Settings() {
         phone: usuario.telefone || '',
         address: usuario.endereco || '',
         customUrl: usuario.slug || '',
-        // Carrega as configurações salvas (se existirem) do campo JSON 'configuracoes'
         workingHours: usuario.configuracoes?.workingHours || prev.workingHours,
         paymentKey: usuario.configuracoes?.paymentKey || prev.paymentKey,
         bookingSettings: usuario.configuracoes?.bookingSettings || prev.bookingSettings,
@@ -75,12 +71,11 @@ export default function Settings() {
     }
   }, [usuario]);
 
-  const fullPublicUrl = settings.customUrl ? `https://${settings.customUrl}.agendpro.shop` : '';
+  const fullPublicUrl = `https://beauty-agenda.vercel.app/booking/${settings.customUrl}`;
 
-  // Lista de abas atualizada conforme nossa análise
   const tabs = [
     { id: 'profile', label: 'Perfil', icon: User },
-    { id: 'availability', label: 'Disponibilidade', icon: Clock }, // Renomeado
+    { id: 'availability', label: 'Disponibilidade', icon: Clock },
     { id: 'payments', label: 'Pagamentos', icon: CreditCard },
     { id: 'public', label: 'Página Pública', icon: Globe },
     { id: 'legal', label: 'Termos e Privacidade', icon: FileText }
@@ -90,14 +85,13 @@ export default function Settings() {
     setIsSaving(true);
     setMessage(null);
 
-    // Prepara o objeto de dados para ser salvo na tabela 'usuarios'
     const profileDataToUpdate = {
       nome_studio: settings.studioName,
       nome: settings.ownerName,
       telefone: settings.phone,
       endereco: settings.address,
       slug: settings.customUrl,
-      configuracoes: { // Agrupa as outras configurações no campo JSON
+      configuracoes: {
         workingHours: settings.workingHours,
         paymentKey: settings.paymentKey,
         bookingSettings: settings.bookingSettings
@@ -112,26 +106,23 @@ export default function Settings() {
       setMessage({ type: 'error', text: `Erro ao salvar: ${result.error}` });
     }
     
-    setTimeout(() => setMessage(null), 5000); // Limpa a mensagem após 5 segundos
+    setTimeout(() => setMessage(null), 5000);
     setIsSaving(false);
   };
 
-  // Suas funções originais permanecem aqui, intactas
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Link copiado!');
   };
 
   const weekDays = [
-    { id: 'monday', label: 'Segunda-feira' },
-    { id: 'tuesday', label: 'Terça-feira' },
-    { id: 'wednesday', label: 'Quarta-feira' },
-    { id: 'thursday', label: 'Quinta-feira' },
-    { id: 'friday', label: 'Sexta-feira' },
-    { id: 'saturday', label: 'Sábado' },
+    { id: 'monday', label: 'Segunda-feira' }, { id: 'tuesday', label: 'Terça-feira' },
+    { id: 'wednesday', label: 'Quarta-feira' }, { id: 'thursday', label: 'Quinta-feira' },
+    { id: 'friday', label: 'Sexta-feira' }, { id: 'saturday', label: 'Sábado' },
     { id: 'sunday', label: 'Domingo' }
   ];
 
+  // FUNÇÕES DE HORÁRIO COM ERRO DE DIGITAÇÃO CORRIGIDO
   const addBreak = (dayId: string) => {
     setSettings(prev => ({
       ...prev,
@@ -139,7 +130,7 @@ export default function Settings() {
         ...prev.workingHours,
         [dayId]: {
           ...prev.workingHours[dayId as keyof typeof prev.workingHours],
-          breaks: [...prev.workingHours[dayId as keyof typeof prev.workingHours].breaks, { start: '12:00', end: '13:00' }]
+          breaks: [...(prev.workingHours[dayId as keyof typeof prev.workingHours].breaks || []), { start: '12:00', end: '13:00' }]
         }
       }
     }));
@@ -152,7 +143,7 @@ export default function Settings() {
         ...prev.workingHours,
         [dayId]: {
           ...prev.workingHours[dayId as keyof typeof prev.workingHours],
-          breaks: prev.workingHours[dayId as keyof typeof prev.workingHours].breaks.filter((_, i) => i !== breakIndex)
+          breaks: (prev.workingHours[dayId as keyof typeof prev.workingHours].breaks || []).filter((_, i) => i !== breakIndex)
         }
       }
     }));
@@ -163,7 +154,7 @@ export default function Settings() {
     const newWorkingHours = { ...settings.workingHours };
     
     Object.keys(newWorkingHours).forEach(day => {
-      if (day !== sourceDay && day !== 'saturday' && day !== 'sunday') { // Exemplo: não copia para o fds
+      if (day !== sourceDay && day !== 'saturday' && day !== 'sunday') {
         newWorkingHours[day as keyof typeof newWorkingHours] = { ...sourceSchedule };
       }
     });
@@ -179,11 +170,7 @@ export default function Settings() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Configurações</h1>
           <p className="text-gray-600">Gerencie as configurações do seu estúdio</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-wait"
-        >
+        <button onClick={handleSave} disabled={isSaving} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-wait">
           <Save size={20} />
           <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
         </button>
@@ -197,15 +184,7 @@ export default function Settings() {
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${activeTab === tab.id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                     <Icon size={20} />
                     <span className="font-medium">{tab.label}</span>
                   </button>
@@ -224,33 +203,12 @@ export default function Settings() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Informações do Perfil</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Estúdio</label>
-                    <input type="text" value={settings.studioName} onChange={(e) => setSettings(prev => ({ ...prev, studioName: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Proprietário</label>
-                    <input type="text" value={settings.ownerName} onChange={(e) => setSettings(prev => ({ ...prev, ownerName: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input type="email" value={settings.email} disabled className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
-                    <input type="tel" value={settings.phone} onChange={(e) => setSettings(prev => ({ ...prev, phone: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
-                    <input type="text" value={settings.address} onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">URL Personalizada</label>
-                    <div className="flex items-center">
-                      <input type="text" value={settings.customUrl} onChange={(e) => setSettings(prev => ({ ...prev, customUrl: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-l-lg"/>
-                      <span className="px-4 py-2 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg text-gray-600">.agendpro.shop</span>
-                    </div>
-                  </div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Nome do Negócio</label><input type="text" value={settings.studioName} onChange={(e) => setSettings(prev => ({ ...prev, studioName: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Nome do Proprietário</label><input type="text" value={settings.ownerName} onChange={(e) => setSettings(prev => ({ ...prev, ownerName: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" value={settings.email} disabled className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"/></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label><input type="tel" value={settings.phone} onChange={(e) => setSettings(prev => ({ ...prev, phone: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                  <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label><input type="text" value={settings.address} onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                  <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">URL Personalizada</label><div className="flex items-center"><input type="text" value={settings.customUrl} onChange={(e) => setSettings(prev => ({ ...prev, customUrl: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-l-lg"/><span className="px-4 py-2 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg text-gray-600">.agendpro.shop</span></div></div>
                 </div>
               </div>
             )}
@@ -274,25 +232,18 @@ export default function Settings() {
                         {daySchedule.enabled && (
                           <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Abertura</label>
-                                <input type="time" value={daySchedule.start} onChange={(e) => setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, start: e.target.value }}}))} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Fechamento</label>
-                                <input type="time" value={daySchedule.end} onChange={(e) => setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, end: e.target.value }}}))} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
-                              </div>
+                              <div><label className="block text-sm font-medium text-gray-700 mb-1">Abertura</label><input type="time" value={daySchedule.start} onChange={(e) => setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, start: e.target.value }}}))} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/></div>
+                              <div><label className="block text-sm font-medium text-gray-700 mb-1">Fechamento</label><input type="time" value={daySchedule.end} onChange={(e) => setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, end: e.target.value }}}))} className="w-full px-3 py-2 border border-gray-300 rounded-lg"/></div>
                             </div>
                             <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-medium text-gray-700">Pausas/Intervalos</label>
-                                <button onClick={() => addBreak(day.id)} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1"><Plus size={14} /><span>Adicionar pausa</span></button>
-                              </div>
-                              {daySchedule.breaks.map((breakTime, index) => (
+                              <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium text-gray-700">Pausas/Intervalos</label><button onClick={() => addBreak(day.id)} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1"><Plus size={14} /><span>Adicionar pausa</span></button></div>
+                              
+                              {/* --- LINHA CORRIGIDA COM A "REDE DE SEGURANÇA" --- */}
+                              {(daySchedule.breaks || []).map((breakTime, index) => (
                                 <div key={index} className="flex items-center space-x-2 mb-2">
-                                  <input type="time" value={breakTime.start} onChange={(e) => { const newBreaks = [...daySchedule.breaks]; newBreaks[index] = { ...breakTime, start: e.target.value }; setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, breaks: newBreaks }}}));}} className="px-3 py-1 border border-gray-300 rounded text-sm"/>
+                                  <input type="time" value={breakTime.start} onChange={(e) => { const newBreaks = [...(daySchedule.breaks || [])]; newBreaks[index] = { ...breakTime, start: e.target.value }; setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, breaks: newBreaks }}}));}} className="px-3 py-1 border border-gray-300 rounded text-sm"/>
                                   <span className="text-gray-500">até</span>
-                                  <input type="time" value={breakTime.end} onChange={(e) => { const newBreaks = [...daySchedule.breaks]; newBreaks[index] = { ...breakTime, end: e.target.value }; setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, breaks: newBreaks }}})); }} className="px-3 py-1 border border-gray-300 rounded text-sm"/>
+                                  <input type="time" value={breakTime.end} onChange={(e) => { const newBreaks = [...(daySchedule.breaks || [])]; newBreaks[index] = { ...breakTime, end: e.target.value }; setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, breaks: newBreaks }}})); }} className="px-3 py-1 border border-gray-300 rounded text-sm"/>
                                   <button onClick={() => removeBreak(day.id, index)} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
                                 </div>
                               ))}
@@ -309,75 +260,29 @@ export default function Settings() {
             {activeTab === 'payments' && (
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Configurações de Pagamento</h2>
-                <div className="p-4 bg-yellow-50 rounded-lg">
-                  <h3 className="font-medium text-yellow-900 mb-2">Como configurar:</h3>
-                  <ol className="text-sm text-yellow-800 space-y-1 list-decimal list-inside">
-                    <li>Acesse sua conta do Mercado Pago</li>
-                    <li>Vá em "Seu negócio" → "Configurações" → "Gestão e Administração" → "Credenciais"</li>
-                    <li>Copie sua chave de acesso (Access Token)</li>
-                    <li>Cole a chave no campo acima</li>
-                  </ol>
-                </div>
+                <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Chave de API do Mercado Pago (Access Token)</label><div className="relative"><input type={isKeyVisible ? 'text' : 'password'} value={settings.paymentKey} onChange={(e) => setSettings(prev => ({ ...prev, paymentKey: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg pr-10" placeholder="Cole seu Access Token de Produção aqui"/><button type="button" onClick={() => setIsKeyVisible(!isKeyVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700">{isKeyVisible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></div>
+                <div className="p-4 bg-yellow-50 rounded-lg"><h3 className="font-medium text-yellow-900 mb-2">Como configurar:</h3><ol className="text-sm text-yellow-800 space-y-1 list-decimal list-inside"><li>Acesse sua conta do Mercado Pago.</li><li>Vá em "Seu negócio" → "Configurações" → "Gestão e Administração" → "Credenciais".</li><li>Na seção "Credenciais de produção", clique em "Ativar credenciais".</li><li>Copie sua chave de acesso chamada **"Access Token"**.</li><li>Cole a chave no campo acima.</li></ol></div>
               </div>
             )}
             
-{activeTab === 'public' && (
+            {activeTab === 'public' && (
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Página Pública de Agendamentos</h2>
                 <div className="space-y-6">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <h3 className="font-medium text-green-900 mb-2">Seu Link de Agendamento</h3>
-                    <p className="text-sm text-green-700 mb-3">Este é o link para compartilhar com seus clientes.</p>
-                    
-                    {/* AQUI ESTÁ A CORREÇÃO: Gerando o link correto da Vercel */}
-                    <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                      <input 
-                        type="text" 
-                        value={`https://beauty-agenda.vercel.app/booking/${settings.customUrl}`} 
-                        readOnly 
-                        className="flex-1 bg-transparent text-sm text-gray-600 focus:outline-none"
-                      />
-                      <button 
-                        onClick={() => copyToClipboard(`https://beauty-agenda.vercel.app/booking/${settings.customUrl}`)} 
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                      >
-                        <Copy size={16} />
-                      </button>
-                      <a 
-                        href={`https://beauty-agenda.vercel.app/booking/${settings.customUrl}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                      >
-                        <ExternalLink size={16} />
-                      </a>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h3 className="font-medium text-blue-900 mb-2">Como usar:</h3>
-                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                      <li>Copie o link acima.</li>
-                      <li>Compartilhe no seu WhatsApp, Instagram, ou onde preferir.</li>
-                      <li>Seus clientes poderão agendar diretamente por ele.</li>
-                    </ol>
-                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg"><h3 className="font-medium text-green-900 mb-2">Seu Link de Agendamento</h3><p className="text-sm text-green-700 mb-3">Este é o link para compartilhar com seus clientes.</p><div className="flex items-center space-x-3 p-3 bg-white rounded-lg border"><input type="text" value={fullPublicUrl} readOnly className="flex-1 bg-transparent text-sm text-gray-600 focus:outline-none"/><button onClick={() => copyToClipboard(fullPublicUrl)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"><Copy size={16} /></button><a href={fullPublicUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"><ExternalLink size={16} /></a></div></div>
+                  <div className="p-4 bg-blue-50 rounded-lg"><h3 className="font-medium text-blue-900 mb-2">Como usar:</h3><ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside"><li>Copie o link acima.</li><li>Compartilhe no seu WhatsApp, Instagram, ou onde preferir.</li><li>Seus clientes poderão agendar diretamente por ele.</li></ol></div>
                 </div>
               </div>
             )}
-
 
             {activeTab === 'legal' && (
               <div>
                  <h2 className="text-xl font-semibold text-gray-900 mb-6">Termos de Uso e Política de Privacidade</h2>
                  <div className="p-4 bg-gray-50 rounded-lg">
                    <h3 className="font-medium text-gray-900 mb-3">Termos de Uso</h3>
-                   <div className="text-sm text-gray-600 space-y-2">
-                     <p>Ao utilizar nossa plataforma, você concorda com os seguintes termos:</p>
-                     <p>• O uso da plataforma é destinado exclusivamente para fins comerciais legítimos</p>
-                     <p>• É responsabilidade do usuário manter suas informações atualizadas</p>
-                     <p>• Não é permitido o uso da plataforma para atividades ilegais ou prejudiciais</p>
-                     <p>• Reservamo-nos o direito de suspender contas que violem estes termos</p>
-                   </div>
+                   <div className="text-sm text-gray-600 space-y-2"><p>Ao utilizar nossa plataforma, você concorda com os seguintes termos:</p><ul className="list-disc list-inside"><li>O uso da plataforma é destinado exclusivamente para fins comerciais legítimos.</li><li>É responsabilidade do usuário manter suas informações atualizadas.</li><li>Não é permitido o uso da plataforma para atividades ilegais ou prejudiciais.</li><li>Reservamo-nos o direito de suspender contas que violem estes termos.</li></ul></div>
+                   <h3 className="font-medium text-gray-900 mt-4 mb-3">Política de Privacidade</h3>
+                   <div className="text-sm text-gray-600 space-y-2"><p>Respeitamos sua privacidade e protegemos seus dados:</p><ul className="list-disc list-inside"><li>Coletamos apenas informações necessárias para o funcionamento do serviço.</li><li>Seus dados não são compartilhados com terceiros sem consentimento.</li><li>Utilizamos criptografia para proteger informações sensíveis.</li><li>Você pode solicitar a exclusão de seus dados a qualquer momento.</li></ul></div>
                  </div>
               </div>
             )}
