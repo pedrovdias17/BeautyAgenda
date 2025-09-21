@@ -31,6 +31,7 @@ export default function Login() {
       } else {
         if (!nome || !nomeStudio || !slug) {
           setError('Todos os campos são obrigatórios');
+          setIsLoading(false); // Adicionado para parar o loading
           return;
         }
 
@@ -64,7 +65,6 @@ export default function Login() {
     }
   };
 
-  // função para lidar com o login do Google
   const handleGoogleLogin = async () => {
     setError('');
     setIsLoading(true);
@@ -72,13 +72,12 @@ export default function Login() {
 
     if (!result.success) {
       setError(result.error || 'Erro ao fazer login com Google');
-      setIsLoading(false); // Só desativa o loading se houver erro
+      setIsLoading(false);
     }
-    // Em caso de sucesso, o redirecionamento é automático, então não precisamos de setIsLoading(false)
   };
 
-  const generateSlug = (studioName: string) => {
-    return studioName
+  const generateSlug = (text: string) => {
+    return text
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -90,9 +89,7 @@ export default function Login() {
 
   const handleStudioNameChange = (value: string) => {
     setNomeStudio(value);
-    if (!slug || slug === generateSlug(nomeStudio)) {
-      setSlug(generateSlug(value));
-    }
+    setSlug(generateSlug(value));
   };
 
   if (showForgotPassword) {
@@ -268,12 +265,13 @@ export default function Login() {
                   </div>
                 </div>
 
+                {/* --- TRECHO CORRIGIDO PARA SER RESPONSIVO --- */}
                 <div>
                   <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-2">
                     URL Personalizada
                   </label>
-                  <div className="flex items-center">
-                    <span className="text-sm text-gray-500 bg-gray-50 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
+                  <div className="flex flex-col sm:flex-row rounded-lg shadow-sm">
+                    <span className="inline-flex items-center px-3 rounded-t-lg sm:rounded-l-lg sm:rounded-r-none border border-b-0 sm:border-b sm:border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
                       agendpro.shop/
                     </span>
                     <input
@@ -282,8 +280,8 @@ export default function Login() {
                       required
                       value={slug}
                       onChange={(e) => setSlug(generateSlug(e.target.value))}
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                      placeholder="meu-studio"
+                      className="flex-1 min-w-0 block w-full px-3 py-3 border rounded-b-lg sm:rounded-l-none sm:rounded-r-lg border-gray-300"
+                      placeholder="meu-negocio"
                     />
                   </div>
                 </div>
@@ -350,7 +348,6 @@ export default function Login() {
               }
             </button>
             
-            {/* Separador e botão de login com Google */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -402,7 +399,6 @@ export default function Login() {
           )}
         </div>
 
-        {/* Trial Info */}
         {!isLogin && (
           <div className="mt-6 p-4 bg-green-50 rounded-lg">
             <p className="text-sm text-green-700 font-medium mb-2">🎉 Teste Grátis por 14 dias!</p>
