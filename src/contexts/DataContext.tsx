@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { sendNewAppointmentWebhook } from '../services/notificationService';
 
 // --- INTERFACES CORRIGIDAS ---
 export interface Professional {
@@ -161,15 +162,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     else await fetchData();
   };
   
-  // --- Funções para Agendamentos e Clientes (LÓGICA CORRIGIDA) ---
-// Dentro de src/contexts/DataContext.tsx
-
-// Dentro de src/contexts/DataContext.tsx
 
 const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
     if (!user) return;
 
-    // --- Lógica de Cliente (permanece a mesma) ---
     let clientRecord = clients.find(c => c.telefone === appointment.clientPhone);
     if (!clientRecord) {
       const { data: newClientData, error: clientError } = await supabase.from('clientes').insert({
@@ -219,38 +215,15 @@ const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id'
       }
       
       console.log('Agendamento salvo no banco:', newAppointment);
-      
+
       if (newAppointment) {
-        console.log('Disparando webhook central para o n8n...');
-        
-        const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-        if (!webhookUrl) {
-          console.error('URL do webhook do n8n não configurada!');
-        } else {
-          const payload = {
-            ownerId: user.id,
-            appointmentId: newAppointment.id,
-            clientName: clientRecord.nome,
-            clientPhone: clientRecord.telefone,
-            serviceName: serviceDetails?.name || 'N/A',
-            professionalName: professionalDetails?.name || 'N/A',
-            requiresSignal: serviceDetails?.requiresSignal || false, // A info para o "IF" do n8n
-            signalAmount: serviceDetails?.signalAmount || 0,
-            totalAmount: serviceDetails?.price || 0
-          };
-
-          fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }).then(response => {
-            if (response.ok) console.log('Webhook para n8n enviado com sucesso!');
-            else console.error('Falha ao enviar webhook para n8n:', response.statusText);
-          }).catch(webhookError => {
-            console.error('Erro de rede ao tentar enviar webhook:', webhookError);
-          });
-        }
+        sendNewAppointmentWebhook({
+          newAppointment,
+          clientRecord,
+          serviceDetails,
+          professionalDetails,
+          user
+        });
       }
 
       await fetchData(); // Recarrega os dados para atualizar a UI
