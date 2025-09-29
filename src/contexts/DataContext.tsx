@@ -198,7 +198,7 @@ const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id'
         data_agendamento: appointment.data_agendamento,
         hora_agendamento: appointment.hora_agendamento,
         status: 'pending',
-        status_pagamento: serviceDetails?.requiresSignal ? 'pending' : 'paid',
+        status_pagamento: appointment.status_pagamento || (serviceDetails?.requiresSignal ? 'pending' : 'paid'),
         valor_sinal: appointment.valor_sinal,
         valor_total: serviceDetails?.price || 0
       };

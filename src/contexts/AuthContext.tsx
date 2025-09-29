@@ -95,11 +95,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Nota: A gente ainda precisa implementar a lógica completa do signup
   const signup = useCallback(async (email: string, password: string, nome: string, nomeStudio: string, slug: string): Promise<{ success: boolean; error?: string; }> => {
-    console.log("Função signup chamada com:", { email, nome, nomeStudio, slug });
-    // Lógica completa de criar usuário no Auth e na tabela 'usuarios' virá aqui.
-    return { success: true };
+    try {
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+
+        if (authError) {
+          if (authError.message.includes('User already registered')) {
+            return { success: false, error: 'Este email já está cadastrado. Tente fazer login.' };
+          }
+          return { success: false, error: authError.message };
+        }
+
+        if (!authData.user) {
+            return { success: false, error: 'Não foi possível criar a conta.' };
+        }
+
+        const { error: profileError } = await supabase
+            .from('usuarios')
+            .update({
+                nome: nome,
+                nome_studio: nomeStudio,
+                slug: slug,
+            })
+            .eq('id', authData.user.id);
+
+        if (profileError) {
+          console.error('Conta criada, mas falha ao atualizar perfil inicial:', profileError);
+        }
+
+        alert('Conta criada com sucesso! Enviamos um link de confirmação para o seu email.');
+        return { success: true };
+
+    } catch (error) {
+        return { success: false, error: 'Erro inesperado ao criar conta' };
+    }
   }, []);
   
   const resetPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string; }> => {
