@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Professional, Service } from '../contexts/DataContext';
+import { sendWebhook } from '../services/webhookService';
 import { 
   Scissors, MapPin, Star, Clock, User, DollarSign, Check, Phone, Mail 
 } from 'lucide-react';
@@ -181,6 +182,47 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       };
       const { error: appointmentError } = await supabase.from('agendamentos').insert(appointmentData);
       if(appointmentError) throw appointmentError;
+      
+      // Enviar webhook com os dados do agendamento
+      const webhookPayload = {
+        appointment: {
+          date: selectedDate,
+          time: selectedTime,
+          status: 'pending',
+          paymentStatus: requiresPayment ? 'pending' : 'paid',
+          signalAmount: signalAmount,
+          totalAmount: selectedServiceData?.price || 0
+        },
+        client: {
+          id: clientId,
+          name: clientData.name,
+          phone: clientData.phone,
+          email: clientData.email
+        },
+        service: {
+          id: selectedService,
+          name: selectedServiceData?.name || '',
+          description: selectedServiceData?.description,
+          duration: selectedServiceData?.duration || 0,
+          price: selectedServiceData?.price || 0,
+          requiresSignal: selectedServiceData?.requiresSignal || false
+        },
+        professional: {
+          id: selectedProfessional,
+          name: selectedProfessionalData?.name || ''
+        },
+        studio: {
+          name: studioInfo?.name || '',
+          address: studioInfo?.address || '',
+          phone: studioInfo?.phone || ''
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      // Enviar webhook (não bloquear o fluxo se falhar)
+      sendWebhook(webhookPayload).catch(error => {
+        console.error('Falha ao enviar webhook:', error);
+      });
       
       setStep(5);
     } catch (error: any) {

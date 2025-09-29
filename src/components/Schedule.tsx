@@ -7,7 +7,10 @@ import {
   Search, 
   ChevronLeft, 
   ChevronRight,
-  X 
+  X,
+  Check,
+  XCircle,
+  Edit
 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { Appointment } from '../contexts/DataContext';
@@ -35,7 +38,16 @@ const formatDateToISO = (date: Date) => {
 };
 
 export default function Schedule() {
-  const { appointments, services, professionals, clients, addAppointment } = useData();
+  const { 
+    appointments, 
+    services, 
+    professionals, 
+    clients, 
+    addAppointment,
+    markAppointmentAsCompleted,
+    cancelAppointment,
+    confirmAppointment
+  } = useData();
 
   // --- ESTADOS DA PÁGINA ---
   const [currentDate, setCurrentDate] = useState(new Date());

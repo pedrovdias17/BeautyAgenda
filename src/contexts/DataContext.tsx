@@ -69,6 +69,10 @@ interface DataContextType {
   addAppointment: (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => Promise<void>;
   updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<void>;
   deleteAppointment: (id: string) => Promise<void>;
+  // Novas funções para mudança de status
+  markAppointmentAsCompleted: (id: string) => Promise<void>;
+  cancelAppointment: (id: string) => Promise<void>;
+  confirmAppointment: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -244,6 +248,52 @@ const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id'
     else await fetchData();
   };
 
+  // --- Funções específicas para mudança de status ---
+  const markAppointmentAsCompleted = async (id: string) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .update({ status: 'completed' })
+      .eq('id', id)
+      .select();
+    if (error) {
+      console.error('Erro ao marcar agendamento como concluído:', error);
+    } else {
+      console.log('Agendamento marcado como concluído:', data);
+      await fetchData();
+    }
+  };
+
+  const cancelAppointment = async (id: string) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .select();
+    if (error) {
+      console.error('Erro ao cancelar agendamento:', error);
+    } else {
+      console.log('Agendamento cancelado:', data);
+      await fetchData();
+    }
+  };
+
+  const confirmAppointment = async (id: string) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .update({ status: 'confirmed' })
+      .eq('id', id)
+      .select();
+    if (error) {
+      console.error('Erro ao confirmar agendamento:', error);
+    } else {
+      console.log('Agendamento confirmado:', data);
+      await fetchData();
+    }
+  };
+
   return (
     <DataContext.Provider value={{
       professionals,
@@ -259,7 +309,10 @@ const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id'
       deleteService,
       addAppointment,
       updateAppointment,
-      deleteAppointment
+      deleteAppointment,
+      markAppointmentAsCompleted,
+      cancelAppointment,
+      confirmAppointment
     }}>
       {children}
     </DataContext.Provider>
