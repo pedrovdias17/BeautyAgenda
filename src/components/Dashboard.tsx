@@ -1,6 +1,5 @@
 import React from 'react';
-import SubscriptionGuard from './SubscriptionGuard';
-import { useSubscriptionCheck } from '../hooks/useSubscriptionCheck';
+import { useData } from '../contexts/DataContext';
 import { 
   Calendar, 
   DollarSign, 
@@ -9,203 +8,135 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Settings as SettingsIcon
 } from 'lucide-react';
-import { useData } from '../contexts/DataContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
-  const { appointments, clients, services, professionals } = useData();
-  const { isTrialActive, daysUntilExpiry } = useSubscriptionCheck();
+  const { appointments, clients, services } = useData();
+  const navigate = useNavigate();
 
+  // --- LÓGICA DE CÁLCULO DAS MÉTRICAS (CORRIGIDA) ---
   const today = new Date().toISOString().split('T')[0];
-  const todayAppointments = appointments.filter(apt => apt.date === today);
-  const confirmedAppointments = appointments.filter(apt => apt.status === 'confirmed');
+  const todayAppointments = appointments.filter(apt => apt.data_agendamento === today);
+  const completedAppointments = appointments.filter(apt => apt.status === 'completed');
+
   const totalRevenue = appointments
-    .filter(apt => apt.paymentStatus === 'paid')
+    .filter(apt => 
+      // REGRA CORRIGIDA: Soma se estiver concluído OU se o pagamento for integral/parcial
+      apt.status === 'completed' || 
+      apt.status_pagamento === 'paid' || 
+      apt.status_pagamento === 'partial'
+    )
     .reduce((sum, apt) => {
-      const service = services.find(s => s.id === apt.serviceId);
+      // Se o pagamento for parcial, soma apenas o valor do sinal.
+      if (apt.status_pagamento === 'partial') {
+        return sum + (apt.valor_sinal || 0);
+      }
+      // Se for pago ou concluído, soma o valor total do serviço.
+      const service = services.find(s => s.id === apt.servico_id);
       return sum + (service?.price || 0);
     }, 0);
-  
-  const signalRevenue = appointments
-    .filter(apt => apt.signalAmount)
-    .reduce((sum, apt) => sum + (apt.signalAmount || 0), 0);
 
-  const attendanceRate = appointments.length > 0 
-    ? Math.round((appointments.filter(apt => apt.status === 'completed').length / appointments.length) * 100)
+  const completionRate = appointments.length > 0 
+    ? Math.round((completedAppointments.length / appointments.length) * 100)
     : 0;
+  // --- COMPONENTES VISUAIS ---
 
-  const stats = [
-    {
-      title: 'Agendamentos Hoje',
-      value: todayAppointments.length,
-      icon: Calendar,
-      color: 'blue',
-      subtitle: `${confirmedAppointments.length} confirmados`
-    },
-    {
-      title: 'Receita Total',
-      value: `R$ ${totalRevenue.toLocaleString()}`,
-      icon: DollarSign,
-      color: 'green',
-      subtitle: `R$ ${signalRevenue} em sinais`
-    },
-    {
-      title: 'Total de Clientes',
-      value: clients.length,
-      icon: Users,
-      color: 'purple',
-      subtitle: 'Clientes cadastrados'
-    },
-    {
-      title: 'Taxa Comparecimento',
-      value: `${attendanceRate}%`,
-      icon: TrendingUp,
-      color: 'orange',
-      subtitle: 'Últimos agendamentos'
-    }
-  ];
+  // Card para as métricas principais
+  const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: string | number, icon: React.ElementType, color: string }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-gray-600">{title}</p>
+        <div className={`p-2 rounded-lg bg-${color}-100`}>
+          <Icon size={20} className={`text-${color}-600`} />
+        </div>
+      </div>
+      <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
+    </div>
+  );
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <CheckCircle size={16} className="text-green-500" />;
-      case 'pending':
-        return <Clock size={16} className="text-yellow-500" />;
-      case 'cancelled':
-        return <XCircle size={16} className="text-red-500" />;
-      default:
-        return <AlertCircle size={16} className="text-gray-500" />;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    const statusMap = {
-      confirmed: 'Confirmado',
-      pending: 'Pendente',
-      cancelled: 'Cancelado',
-      completed: 'Concluído'
-    };
-    return statusMap[status as keyof typeof statusMap] || status;
-  };
+  // Card para ações rápidas
+  const ActionCard = ({ title, subtitle, icon: Icon, color, path }: { title: string, subtitle: string, icon: React.ElementType, color: string, path: string }) => (
+    <button onClick={() => navigate(path)} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-left hover:border-gray-300 transition-all">
+      <div className={`p-3 rounded-lg bg-${color}-100 inline-block mb-4`}>
+        <Icon size={24} className={`text-${color}-600`} />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+    </button>
+  );
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
-        {isTrialActive && daysUntilExpiry <= 5 && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center space-x-2 text-yellow-800">
-              <span className="font-medium">
-                ⚠️ Seu trial expira em {daysUntilExpiry} dias. 
-                <a href="/upgrade" className="underline ml-1">Faça upgrade agora!</a>
-              </span>
-            </div>
-          </div>
-        )}
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-600">Visão geral do seu negócio</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Painel Administrativo</h1>
+        <p className="text-gray-600">Visão geral do seu negócio em tempo real</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg bg-${stat.color}-100`}>
-                  <Icon size={24} className={`text-${stat.color}-600`} />
-                </div>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</h3>
-              <p className="text-sm font-medium text-gray-700 mb-1">{stat.title}</p>
-              <p className="text-xs text-gray-500">{stat.subtitle}</p>
-            </div>
-          );
-        })}
+        <StatCard title="Agendamentos Hoje" value={todayAppointments.length} icon={Calendar} color="blue" />
+        <StatCard title="Concluídos (mês)" value={completedAppointments.length} icon={CheckCircle} color="green" />
+        <StatCard title="Faturamento (mês)" value={`R$ ${totalRevenue.toLocaleString()}`} icon={DollarSign} color="purple" />
+        <StatCard title="Taxa de Conclusão" value={`${completionRate}%`} icon={TrendingUp} color="orange" />
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Agendamentos de Hoje */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-900">Agendamentos de Hoje</h2>
-            <p className="text-sm text-gray-600 mt-1">{todayAppointments.length} agendamentos</p>
+      {/* Content Grid - Ações e Agendamentos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Coluna da Esquerda: Ações */}
+        <div className="lg:col-span-1 space-y-6">
+          <ActionCard title="Ver Agenda" subtitle="Visualize e gerencie agendamentos" icon={Calendar} color="blue" path="/schedule" />
+          <ActionCard title="Clientes" subtitle="Gerencie sua base de clientes" icon={Users} color="purple" path="/clients" />
+          <ActionCard title="Configurações" subtitle="Ajuste seu perfil e negócio" icon={SettingsIcon} color="gray" path="/settings" />
+        </div>
+
+        {/* Coluna da Direita: Agendamentos de Hoje */}
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Agendamentos de Hoje</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+              </p>
+            </div>
+            <button onClick={() => navigate('/schedule')} className="text-sm text-blue-600 font-medium hover:text-blue-700">
+              Ver todos
+            </button>
           </div>
           <div className="p-6">
             {todayAppointments.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="text-center py-12">
                 <Calendar size={48} className="text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Nenhum agendamento para hoje</p>
+                <p className="text-gray-500">Nenhum agendamento para hoje. Aproveite o dia!</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {todayAppointments.slice(0, 5).map((appointment) => {
-                  const service = services.find(s => s.id === appointment.serviceId);
-                  const professional = professionals.find(p => p.id === appointment.professionalId);
-                  
-                  return (
-                    <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-shrink-0">
-                          {getStatusIcon(appointment.status)}
+                {todayAppointments
+                  .sort((a, b) => a.hora_agendamento.localeCompare(b.hora_agendamento))
+                  .slice(0, 5) // Mostra no máximo 5 agendamentos aqui
+                  .map((appointment) => {
+                    const service = services.find(s => s.id === appointment.servico_id);
+                    const client = clients.find(c => c.id === appointment.cliente_id);
+                    return (
+                      <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0 text-gray-600">
+                            <Clock size={20} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{client?.nome || 'Cliente não encontrado'}</p>
+                            <p className="text-sm text-gray-600">{service?.name}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{appointment.clientName}</p>
-                          <p className="text-sm text-gray-600">{service?.name} • {professional?.name}</p>
-                        </div>
+                        <div className="text-lg font-semibold text-gray-900">{appointment.hora_agendamento}</div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-gray-900">{appointment.time}</p>
-                        <p className="text-xs text-gray-500">{getStatusText(appointment.status)}</p>
-                      </div>
-                    </div>
-                  );
+                    );
                 })}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Resumo Financeiro */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-900">Resumo Financeiro</h2>
-            <p className="text-sm text-gray-600 mt-1">Receita e pagamentos</p>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-green-700">Receita Total</p>
-                <p className="text-2xl font-bold text-green-900">R$ {totalRevenue.toLocaleString()}</p>
-              </div>
-              <DollarSign size={32} className="text-green-600" />
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-blue-700">Sinais Recebidos</p>
-                <p className="text-2xl font-bold text-blue-900">R$ {signalRevenue.toLocaleString()}</p>
-              </div>
-              <TrendingUp size={32} className="text-blue-600" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Pagos</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {appointments.filter(apt => apt.paymentStatus === 'paid').length}
-                </p>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Pendentes</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {appointments.filter(apt => apt.paymentStatus === 'pending').length}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
