@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
-import { sendNewAppointmentWebhook } from '../services/notificationService';
 
-// --- INTERFACES CORRIGIDAS ---
+// --- INTERFACES ---
 export interface Professional {
   id: string;
   usuario_id: string;
@@ -38,9 +37,9 @@ export interface Appointment {
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
   status_pagamento: 'pending' | 'partial' | 'paid';
   valor_sinal?: number;
-  clientName: string;
-  clientPhone: string;
-  clientEmail: string;
+  clientName: string; // Adicionado para agendamentos manuais
+  clientPhone: string; // Adicionado para agendamentos manuais
+  clientEmail: string; // Adicionado para agendamentos manuais
 }
 
 export interface Client {
@@ -60,6 +59,7 @@ interface DataContextType {
   appointments: Appointment[];
   clients: Client[];
   isLoading: boolean;
+  fetchData: () => Promise<void>;
   addProfessional: (professional: Omit<Professional, 'id' | 'usuario_id'>) => Promise<void>;
   updateProfessional: (id: string, professional: Partial<Professional>) => Promise<void>;
   deleteProfessional: (id: string) => Promise<void>;
@@ -67,12 +67,7 @@ interface DataContextType {
   updateService: (id: string, service: Partial<Service>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
   addAppointment: (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => Promise<void>;
-  updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<void>;
-  deleteAppointment: (id: string) => Promise<void>;
-  // Novas funções para mudança de status
-  markAppointmentAsCompleted: (id: string) => Promise<void>;
-  cancelAppointment: (id: string) => Promise<void>;
-  confirmAppointment: (id: string) => Promise<void>;
+  updateAppointmentStatus: (id: string, status: 'confirmed' | 'pending' | 'cancelled' | 'completed') => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -94,19 +89,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
         const { data: proData, error: proError } = await supabase.from('profissionais').select('*').eq('usuario_id', user.id);
-        if (proError) console.error('Erro ao buscar profissionais:', proError);
+        if (proError) throw proError;
         setProfessionals(proData || []);
 
         const { data: servicesData, error: servicesError } = await supabase.from('servicos').select('*').eq('usuario_id', user.id);
-        if (servicesError) console.error('Erro ao buscar serviços:', servicesError);
+        if (servicesError) throw servicesError;
         setServices(servicesData || []);
 
         const { data: appointmentsData, error: appointmentsError } = await supabase.from('agendamentos').select('*').eq('usuario_id', user.id);
-        if (appointmentsError) console.error('Erro ao buscar agendamentos:', appointmentsError);
+        if (appointmentsError) throw appointmentsError;
         setAppointments(appointmentsData || []);
 
         const { data: clientsData, error: clientsError } = await supabase.from('clientes').select('*').eq('usuario_id', user.id);
-        if (clientsError) console.error('Erro ao buscar clientes:', clientsError);
+        if (clientsError) throw clientsError;
         setClients(clientsData || []);
 
     } catch (error) {
@@ -122,197 +117,104 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchData]);
 
-  // --- Funções para Profissionais ---
+  // --- Funções CRUD ---
+
   const addProfessional = async (professional: Omit<Professional, 'id' | 'usuario_id'>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('profissionais').insert({ ...professional, usuario_id: user.id }).select();
-    if (error) console.error('Erro ao adicionar profissional:', error);
-    if (data) await fetchData();
+    const { error } = await supabase.from('profissionais').insert({ ...professional, usuario_id: user.id });
+    if (error) console.error('Erro ao adicionar profissional:', error); else await fetchData();
   };
 
   const updateProfessional = async (id: string, professional: Partial<Professional>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('profissionais').update(professional).eq('id', id).select();
-    if (error) console.error('Erro ao atualizar profissional:', error);
-    if (data) await fetchData();
+    const { error } = await supabase.from('profissionais').update(professional).eq('id', id);
+    if (error) console.error('Erro ao atualizar profissional:', error); else await fetchData();
   };
 
   const deleteProfessional = async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('profissionais').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar profissional:', error);
-    else await fetchData();
+    if (error) console.error('Erro ao deletar profissional:', error); else await fetchData();
   };
   
-  // --- Funções para Serviços ---
   const addService = async (service: Omit<Service, 'id' | 'usuario_id' | 'active'>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('servicos').insert({ ...service, usuario_id: user.id, active: true }).select();
-    if (error) console.error('Erro ao adicionar serviço:', error);
-    if (data) await fetchData();
+    const { error } = await supabase.from('servicos').insert({ ...service, usuario_id: user.id, active: true });
+    if (error) console.error('Erro ao adicionar serviço:', error); else await fetchData();
   };
 
   const updateService = async (id: string, service: Partial<Service>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('servicos').update(service).eq('id', id).select();
-    if (error) console.error('Erro ao atualizar serviço:', error);
-    if (data) await fetchData();
+    const { error } = await supabase.from('servicos').update(service).eq('id', id);
+    if (error) console.error('Erro ao atualizar serviço:', error); else await fetchData();
   };
 
   const deleteService = async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('servicos').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar serviço:', error);
-    else await fetchData();
+    if (error) console.error('Erro ao deletar serviço:', error); else await fetchData();
   };
   
-
-const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
+  const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id'>) => {
     if (!user) return;
 
-    let clientRecord = clients.find(c => c.telefone === appointment.clientPhone);
-    if (!clientRecord) {
-      const { data: newClientData, error: clientError } = await supabase.from('clientes').insert({
-          usuario_id: user.id,
-          nome: appointment.clientName,
-          telefone: appointment.clientPhone,
-          email: appointment.clientEmail,
-          total_agendamentos: 1,
-          ultima_visita: appointment.data_agendamento,
-        }).select().single();
-      if (clientError) { console.error('Erro ao criar novo cliente:', clientError); return; }
-      clientRecord = newClientData;
-    } else {
-      const { error: updateError } = await supabase.from('clientes').update({
-          total_agendamentos: clientRecord.total_agendamentos + 1,
-          ultima_visita: appointment.data_agendamento,
-        }).eq('id', clientRecord.id);
-      if (updateError) console.error('Erro ao atualizar cliente existente:', updateError);
+    // A lógica inteligente de criar/atualizar cliente continua aqui
+    const { data: clientResult, error: clientError } = await supabase.rpc('find_or_create_client', {
+      p_owner_id: user.id,
+      p_name: appointment.clientName,
+      p_phone: appointment.clientPhone,
+      p_email: appointment.clientEmail,
+      p_last_visit: appointment.data_agendamento
+    });
+
+    if (clientError) {
+      console.error('Erro ao criar/encontrar cliente:', clientError);
+      return;
     }
+    const clientId = clientResult;
 
-    if (clientRecord) {
-      const serviceDetails = services.find(s => s.id === appointment.servico_id);
-      const professionalDetails = professionals.find(p => p.id === appointment.profissional_id);
+    const serviceDetails = services.find(s => s.id === appointment.servico_id);
 
-      const appointmentDataForDB = {
-        usuario_id: user.id,
-        cliente_id: clientRecord.id,
-        servico_id: appointment.servico_id,
-        profissional_id: appointment.profissional_id,
-        data_agendamento: appointment.data_agendamento,
-        hora_agendamento: appointment.hora_agendamento,
-        status: 'pending',
-        status_pagamento: appointment.status_pagamento || (serviceDetails?.requiresSignal ? 'pending' : 'paid'),
-        valor_sinal: appointment.valor_sinal,
-        valor_total: serviceDetails?.price || 0
-      };
+    const appointmentDataForDB = {
+      usuario_id: user.id,
+      cliente_id: clientId,
+      servico_id: appointment.servico_id,
+      profissional_id: appointment.profissional_id,
+      data_agendamento: appointment.data_agendamento,
+      hora_agendamento: appointment.hora_agendamento,
+      status: appointment.status,
+      status_pagamento: appointment.status_pagamento || (serviceDetails?.requiresSignal ? 'pending' : 'paid'),
+      valor_sinal: appointment.valor_sinal,
+      valor_total: serviceDetails?.price || 0
+    };
 
-      const { data: newAppointment, error } = await supabase
-        .from('agendamentos')
-        .insert(appointmentDataForDB)
-        .select()
-        .single();
+    const { data: newAppointment, error } = await supabase
+      .from('agendamentos').insert(appointmentDataForDB).select().single();
 
-      if (error) {
-        console.error('Erro ao adicionar agendamento:', error);
-        return;
-      }
-      
-      console.log('Agendamento salvo no banco:', newAppointment);
-
-      if (newAppointment) {
-        sendNewAppointmentWebhook({
-          newAppointment,
-          clientRecord,
-          serviceDetails,
-          professionalDetails,
-          user
-        });
-      }
-
-      await fetchData(); // Recarrega os dados para atualizar a UI
-    }
-};
-
-  const updateAppointment = async (id: string, appointmentUpdate: Partial<Appointment>) => {
-    if (!user) return;
-    const { data, error } = await supabase.from('agendamentos').update(appointmentUpdate).eq('id', id).select();
-    if (error) console.error('Erro ao atualizar agendamento:', error);
-    if (data) await fetchData();
-  };
-
-  const deleteAppointment = async (id: string) => {
-    if (!user) return;
-    const { error } = await supabase.from('agendamentos').delete().eq('id', id);
-    if (error) console.error('Erro ao deletar agendamento:', error);
-    else await fetchData();
-  };
-
-  // --- Funções específicas para mudança de status ---
-  const markAppointmentAsCompleted = async (id: string) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('agendamentos')
-      .update({ status: 'completed' })
-      .eq('id', id)
-      .select();
     if (error) {
-      console.error('Erro ao marcar agendamento como concluído:', error);
-    } else {
-      console.log('Agendamento marcado como concluído:', data);
-      await fetchData();
+      console.error('Erro ao adicionar agendamento no DataContext:', error);
+      return;
     }
+    
+    console.log('Agendamento salvo via DataContext:', newAppointment);
+    
+    // A CHAMADA DO WEBHOOK FOI REMOVIDA DAQUI INTENCIONALMENTE
+    
+    await fetchData();
   };
 
-  const cancelAppointment = async (id: string) => {
+  const updateAppointmentStatus = async (id: string, status: 'confirmed' | 'pending' | 'cancelled' | 'completed') => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from('agendamentos')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-      .select();
-    if (error) {
-      console.error('Erro ao cancelar agendamento:', error);
-    } else {
-      console.log('Agendamento cancelado:', data);
-      await fetchData();
-    }
-  };
-
-  const confirmAppointment = async (id: string) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('agendamentos')
-      .update({ status: 'confirmed' })
-      .eq('id', id)
-      .select();
-    if (error) {
-      console.error('Erro ao confirmar agendamento:', error);
-    } else {
-      console.log('Agendamento confirmado:', data);
-      await fetchData();
-    }
+    const { error } = await supabase.from('agendamentos').update({ status: status }).eq('id', id);
+    if (error) console.error('Erro ao atualizar status:', error); else await fetchData();
   };
 
   return (
     <DataContext.Provider value={{
-      professionals,
-      services,
-      appointments,
-      clients,
-      isLoading,
-      addProfessional,
-      updateProfessional,
-      deleteProfessional,
-      addService,
-      updateService,
-      deleteService,
-      addAppointment,
-      updateAppointment,
-      deleteAppointment,
-      markAppointmentAsCompleted,
-      cancelAppointment,
-      confirmAppointment
+      professionals, services, appointments, clients, isLoading,
+      fetchData, addProfessional, updateProfessional, deleteProfessional,
+      addService, updateService, deleteService, addAppointment,
+      updateAppointmentStatus
     }}>
       {children}
     </DataContext.Provider>

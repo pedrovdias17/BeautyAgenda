@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Professional, Service } from '../contexts/DataContext';
-import { sendWebhook } from '../services/webhookService';
+import { Professional, Service, Client, Appointment } from '../contexts/DataContext';
+import { sendNewAppointmentWebhook } from '../services/notificationService';
 import { 
   Scissors, MapPin, Star, Clock, User, DollarSign, Check, Phone, Mail 
 } from 'lucide-react';
@@ -84,6 +84,28 @@ export default function PublicBooking() {
     fetchStudioData();
   }, [slug]);
 
+  // --- LÓGICA DE VALIDAÇÃO E FORMATAÇÃO EM TEMPO REAL ---
+
+  const handleClientDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    let processedValue = value;
+
+    if (name === 'name') {
+      processedValue = value.replace(/[^a-zA-Z\s]/g, '');
+    }
+    
+    if (name === 'phone') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length <= 2) processedValue = `(${digits}`;
+      else if (digits.length <= 7) processedValue = `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+      else processedValue = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+    }
+
+    setClientData(prev => ({ ...prev, [name]: processedValue }));
+  };
+
+  // --- LÓGICA DO FORMULÁRIO ---
+
   const selectedServiceData = services.find(s => s.id === selectedService);
   const selectedProfessionalData = professionals.find(p => p.id === selectedProfessional);
   const signalAmount = selectedServiceData?.requiresSignal ? selectedServiceData.signalAmount : 0;
@@ -115,45 +137,26 @@ export default function PublicBooking() {
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const value = e.target.value;
-  // Regex que remove tudo que não for letra (maiúscula ou minúscula) ou espaço
-  const onlyText = value.replace(/[^a-zA-Z\s]/g, '');
-  setClientData(prev => ({ ...prev, name: onlyText }));
-};
-
-const formatPhone = (value: string) => {
-  if (!value) return "";
-  // Remove tudo que não for dígito
-  const digits = value.replace(/\D/g, '');
-  // Aplica a máscara (XX) XXXXX-XXXX
-  if (digits.length <= 2) return `(${digits}`;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-};
-
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const formattedPhone = formatPhone(e.target.value);
-  setClientData(prev => ({ ...prev, phone: formattedPhone }));
-};
-
   const handleSubmit = async () => {
-    if (!clientData.name || !clientData.phone) {
+    // Validação final antes de enviar
+    if (!clientData.name.trim() || !clientData.phone.trim()) {
       alert('Por favor, preencha seu nome e telefone.');
+      return;
+    }
+    const phoneDigits = clientData.phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      alert('Por favor, digite um telefone válido com DDD.');
       return;
     }
     if (clientData.email && !/\S+@\S+\.\S+/.test(clientData.email)) {
       alert('Por favor, digite um email válido.');
       return;
     }
-    if (clientData.phone.replace(/\D/g, '').length < 10) {
-      alert('Por favor, digite um telefone válido com DDD.');
-      return;
-    }
     if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime || !ownerId) {
       alert('Por favor, preencha todos os dados do agendamento.');
       return;
     }
+
     setIsSubmitting(true);
     
     try {
@@ -175,54 +178,31 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         profissional_id: selectedProfessional,
         data_agendamento: selectedDate,
         hora_agendamento: selectedTime,
-        status: 'pending',
-        status_pagamento: requiresPayment ? 'pending' : 'paid',
+        status: 'pending' as 'pending',
+        status_pagamento: (requiresPayment ? 'pending' : 'paid') as 'pending' | 'paid',
         valor_sinal: signalAmount,
         valor_total: selectedServiceData?.price || 0
       };
-      const { error: appointmentError } = await supabase.from('agendamentos').insert(appointmentData);
+
+      const { data: newAppointment, error: appointmentError } = await supabase
+        .from('agendamentos').insert(appointmentData).select().single();
       if(appointmentError) throw appointmentError;
       
-      // Enviar webhook com os dados do agendamento
-      const webhookPayload = {
-        appointment: {
-          date: selectedDate,
-          time: selectedTime,
-          status: 'pending',
-          paymentStatus: requiresPayment ? 'pending' : 'paid',
-          signalAmount: signalAmount,
-          totalAmount: selectedServiceData?.price || 0
-        },
-        client: {
-          id: clientId,
-          name: clientData.name,
-          phone: clientData.phone,
-          email: clientData.email
-        },
-        service: {
-          id: selectedService,
-          name: selectedServiceData?.name || '',
-          description: selectedServiceData?.description,
-          duration: selectedServiceData?.duration || 0,
-          price: selectedServiceData?.price || 0,
-          requiresSignal: selectedServiceData?.requiresSignal || false
-        },
-        professional: {
-          id: selectedProfessional,
-          name: selectedProfessionalData?.name || ''
-        },
-        studio: {
-          name: studioInfo?.name || '',
-          address: studioInfo?.address || '',
-          phone: studioInfo?.phone || ''
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      // Enviar webhook (não bloquear o fluxo se falhar)
-      sendWebhook(webhookPayload).catch(error => {
-        console.error('Falha ao enviar webhook:', error);
-      });
+      if (newAppointment) {
+        const clientRecordForWebhook: Client = {
+          id: clientId, usuario_id: ownerId!, nome: clientData.name,
+          telefone: clientData.phone, email: clientData.email,
+          total_agendamentos: 1, ultima_visita: selectedDate
+        };
+        
+        sendNewAppointmentWebhook({
+          newAppointment: newAppointment as Appointment,
+          clientRecord: clientRecordForWebhook,
+          serviceDetails: selectedServiceData,
+          professionalDetails: selectedProfessionalData,
+          user: { id: ownerId! } as any
+        });
+      }
       
       setStep(5);
     } catch (error: any) {
@@ -238,7 +218,7 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   }
   
   if (!isLoading && (!services || services.length === 0)) {
-    return <div className="min-h-screen flex items-center justify-center p-4 text-center">Este negócio não foi encontrado ou não tem serviços disponíveis para agendamento online.</div>;
+    return <div className="min-h-screen flex items-center justify-center p-4 text-center">Este negócio não foi encontrado ou não tem serviços disponíveis.</div>;
   }
 
   return (
@@ -262,7 +242,7 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Profissional</span>
             <span className={step >= 3 ? 'text-blue-600 font-medium' : ''}>Data & Hora</span>
             <span className={step >= 4 ? 'text-blue-600 font-medium' : ''}>Seus Dados</span>
-            <span className={step >= 5 ? 'text-blue-600 font-medium' : ''}>Pagamento</span>
+            <span className={step >= 5 ? 'text-blue-600 font-medium' : ''}>Confirmação</span>
           </div>
           <div className="mt-2 h-2 bg-gray-200 rounded-full">
             <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${((step - 1) / 4) * 100}%` }} />
@@ -270,77 +250,39 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
         
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          {step === 1 && (
+          {step === 1 && ( 
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha seu serviço</h2>
               <div className="space-y-4">
-                {services.map((service) => {
-                  const professional = professionals.find(p => p.id === service.professionalId);
-                  return (
+                {services.map((service) => (
                     <button key={service.id} onClick={() => handleServiceSelect(service.id)} className={`w-full p-4 border rounded-lg text-left transition-colors ${selectedService === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">{service.name}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{service.description}</p>
-                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                            <div className="flex items-center space-x-1"><Clock size={14} /><span>{service.duration} min</span></div>
-                            <div className="flex items-center space-x-1"><User size={14} /><span>{professional?.name}</span></div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-semibold text-gray-900">R$ {service.price.toLocaleString()}</div>
-                          {service.requiresSignal && (<div className="text-sm text-gray-500">Sinal: R$ {service.signalAmount}</div>)}
-                        </div>
-                      </div>
+                      <h3 className="font-medium text-gray-900">{service.name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{service.description}</p>
                     </button>
-                  );
-                })}
+                ))}
               </div>
               <div className="mt-6 flex justify-end">
                 <button onClick={handleNext} disabled={!selectedService} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
               </div>
-            </div>
+            </div> 
           )}
-          {step === 2 && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha o profissional</h2>
-              <div className="space-y-4">
-                {availableProfessionals.map((professional) => (
-                  <button key={professional.id} onClick={() => setSelectedProfessional(professional.id)} className={`w-full p-4 border rounded-lg text-left transition-colors ${selectedProfessional === professional.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center"><User size={20} className="text-gray-600" /></div>
-                      <div className="flex-1"><h3 className="font-medium text-gray-900">{professional.name}</h3></div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-6 flex justify-between">
-                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50">Voltar</button>
-                <button onClick={handleNext} disabled={!selectedProfessional} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
-              </div>
-            </div>
-          )}
-          {step === 3 && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha data e horário</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Data</label><input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Horário</label><select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="">Selecione um horário</option>{timeSlots.map((time) => (<option key={time} value={time}>{time}</option>))}</select></div>
-              </div>
-              {selectedDate && selectedTime && ( <div className="mt-6 p-4 bg-blue-50 rounded-lg"> <h3 className="font-medium text-blue-900 mb-2">Resumo do Agendamento</h3> <div className="text-sm text-blue-800 space-y-1"> <p><strong>Serviço:</strong> {selectedServiceData?.name}</p><p><strong>Profissional:</strong> {selectedProfessionalData?.name}</p><p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p><p><strong>Horário:</strong> {selectedTime}</p></div></div>)}
-              <div className="mt-6 flex justify-between">
-                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50">Voltar</button>
-                <button onClick={handleNext} disabled={!selectedDate || !selectedTime} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
-              </div>
-            </div>
-          )}
+
           {step === 4 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Seus dados</h2>
               <div className="space-y-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Nome completo</label><input type="text" required value={clientData.name} onChange={handleNameChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder='"Digite seu nome aqui'/></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label><input type="tel" required value={clientData.phone} onChange={handlePhoneChange} maxLength={15} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="(11) 99999-9999"/></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Email (opcional)</label><input type="email" value={clientData.email} onChange={(e) => setClientData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome completo</label>
+                  <input name="name" type="text" required value={clientData.name} onChange={handleClientDataChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Digite seu nome aqui"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label>
+                  <input name="phone" type="tel" required value={clientData.phone} onChange={handleClientDataChange} maxLength={15} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="(11) 99999-9999"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email (opcional)</label>
+                  <input name="email" type="email" value={clientData.email} onChange={handleClientDataChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="seu@email.com"/>
+                </div>
               </div>
               <div className="mt-6 flex justify-between">
                 <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50">Voltar</button>
@@ -348,13 +290,14 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               </div>
             </div>
           )}
+
           {step >= 5 && (
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} /></div>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Agendamento Confirmado!</h2>
-              <p className="text-gray-600 mb-6">Seu agendamento foi criado com sucesso.</p>
+              <p className="text-gray-600 mb-6">Seu agendamento foi criado com sucesso. Você receberá uma notificação em breve.</p>
               <div className="p-4 bg-green-50 rounded-lg mb-6">
-                 <h3 className="font-medium text-green-900 mb-2">Seu Agendamento</h3>
+                 <h3 className="font-medium text-green-900 mb-2">Detalhes do Agendamento</h3>
                  <div className="text-sm text-green-800 space-y-1">
                    <p><strong>Data:</strong> {new Date(selectedDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p>
                    <p><strong>Horário:</strong> {selectedTime}</p>
