@@ -85,7 +85,6 @@ export default function PublicBooking() {
   }, [slug]);
 
   // --- LÓGICA DE VALIDAÇÃO E FORMATAÇÃO EM TEMPO REAL ---
-
   const handleClientDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let processedValue = value;
@@ -103,13 +102,10 @@ export default function PublicBooking() {
 
     setClientData(prev => ({ ...prev, [name]: processedValue }));
   };
-
+  
   // --- LÓGICA DO FORMULÁRIO ---
-
   const selectedServiceData = services.find(s => s.id === selectedService);
   const selectedProfessionalData = professionals.find(p => p.id === selectedProfessional);
-  const signalAmount = selectedServiceData?.requiresSignal ? selectedServiceData.signalAmount : 0;
-  const requiresPayment = selectedServiceData?.requiresSignal || false;
 
   const generateTimeSlots = () => {
     const slots = [];
@@ -140,47 +136,36 @@ export default function PublicBooking() {
   const handleSubmit = async () => {
     // Validação final antes de enviar
     if (!clientData.name.trim() || !clientData.phone.trim()) {
-      alert('Por favor, preencha seu nome e telefone.');
-      return;
+      alert('Por favor, preencha seu nome e telefone.'); return;
     }
     const phoneDigits = clientData.phone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
-      alert('Por favor, digite um telefone válido com DDD.');
-      return;
+      alert('Por favor, digite um telefone válido com DDD.'); return;
     }
     if (clientData.email && !/\S+@\S+\.\S+/.test(clientData.email)) {
-      alert('Por favor, digite um email válido.');
-      return;
+      alert('Por favor, digite um email válido.'); return;
     }
     if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime || !ownerId) {
-      alert('Por favor, preencha todos os dados do agendamento.');
-      return;
+      alert('Por favor, preencha todos os dados do agendamento.'); return;
     }
 
     setIsSubmitting(true);
     
     try {
       const { data: clientResult, error: clientError } = await supabase.rpc('find_or_create_client', {
-        p_owner_id: ownerId,
-        p_name: clientData.name,
-        p_phone: clientData.phone,
-        p_email: clientData.email,
-        p_last_visit: selectedDate
+        p_owner_id: ownerId, p_name: clientData.name, p_phone: clientData.phone,
+        p_email: clientData.email, p_last_visit: selectedDate
       });
       if(clientError) throw clientError;
 
       const clientId = clientResult;
       
       const appointmentData = {
-        usuario_id: ownerId,
-        cliente_id: clientId,
-        servico_id: selectedService,
-        profissional_id: selectedProfessional,
-        data_agendamento: selectedDate,
-        hora_agendamento: selectedTime,
-        status: 'pending' as 'pending',
-        status_pagamento: (requiresPayment ? 'pending' : 'paid') as 'pending' | 'paid',
-        valor_sinal: signalAmount,
+        usuario_id: ownerId, cliente_id: clientId, servico_id: selectedService,
+        profissional_id: selectedProfessional, data_agendamento: selectedDate,
+        hora_agendamento: selectedTime, status: 'pending' as 'pending',
+        status_pagamento: (selectedServiceData?.requiresSignal ? 'pending' : 'paid') as 'pending' | 'paid',
+        valor_sinal: selectedServiceData?.requiresSignal ? selectedServiceData.signalAmount : 0,
         valor_total: selectedServiceData?.price || 0
       };
 
@@ -265,6 +250,46 @@ export default function PublicBooking() {
                 <button onClick={handleNext} disabled={!selectedService} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
               </div>
             </div> 
+          )}
+
+          {step === 2 && (
+             <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha o profissional</h2>
+              <div className="space-y-4">
+                {availableProfessionals.map((professional) => (
+                  <button key={professional.id} onClick={() => setSelectedProfessional(professional.id)} className={`w-full p-4 border rounded-lg text-left transition-colors ${selectedProfessional === professional.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <h3 className="font-medium text-gray-900">{professional.name}</h3>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-6 flex justify-between">
+                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50">Voltar</button>
+                <button onClick={handleNext} disabled={!selectedProfessional} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Escolha data e horário</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
+                  <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Horário</label>
+                  <select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Selecione um horário</option>
+                    {timeSlots.map((time) => (<option key={time} value={time}>{time}</option>))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-between">
+                <button onClick={handleBack} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50">Voltar</button>
+                <button onClick={handleNext} disabled={!selectedDate || !selectedTime} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">Continuar</button>
+              </div>
+            </div>
           )}
 
           {step === 4 && (
