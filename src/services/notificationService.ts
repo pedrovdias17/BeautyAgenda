@@ -2,6 +2,7 @@
 
 import { Appointment, Client, Professional, Service } from "../contexts/DataContext";
 import { User } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase"; // 1. Importamos o cliente supabase
 
 interface NewAppointmentData {
   newAppointment: Appointment;
@@ -11,22 +12,12 @@ interface NewAppointmentData {
   user: User;
 }
 
-export const sendNewAppointmentWebhook = (data: NewAppointmentData) => {
-  // LOG 1: Confirma que a função foi chamada
-  console.log("%c--- SERVIÇO DE NOTIFICAÇÃO ATIVADO ---", "color: orange; font-weight: bold;");
-
+export const sendNewAppointmentWebhook = async (data: NewAppointmentData) => {
   const { newAppointment, clientRecord, serviceDetails, professionalDetails, user } = data;
-        
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-  // LOG 2: Mostra a URL que o Vite está lendo
-  console.log("URL do Webhook que será usada:", webhookUrl);
-
-  if (!webhookUrl) {
-    console.error('ERRO FATAL: URL do webhook do n8n não configurada no arquivo .env.local!');
-    return;
-  }
   
+  console.log("%c--- SERVIÇO DE NOTIFICAÇÃO (via Edge Function) ---", "color: orange; font-weight: bold;");
+
+  // O payload (pacote de dados) continua o mesmo
   const payload = {
     ownerId: user.id,
     appointmentId: newAppointment.id,
@@ -42,20 +33,22 @@ export const sendNewAppointmentWebhook = (data: NewAppointmentData) => {
     totalAmount: serviceDetails?.price || 0
   };
 
-  // LOG 3: Mostra exatamente os dados que estamos enviando
-  console.log("Payload que será enviado para o n8n:", payload);
+  console.log("Payload que será enviado para a Edge Function:", payload);
 
-  fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(response => {
-    if (response.ok) {
-      console.log('%cSUCESSO: Webhook para n8n enviado!', 'color: lightgreen; font-weight: bold;');
-    } else {
-      console.error('FALHA: n8n respondeu com erro:', response.status, response.statusText);
+  try {
+    // 2. A MÁGICA ESTÁ AQUI: Agora chamamos nossa função segura no Supabase
+    const { data: result, error } = await supabase.functions.invoke('notify-n8n', {
+      body: payload
+    });
+
+    if (error) {
+      // Se a Edge Function retornar um erro, ele será capturado aqui
+      throw error;
     }
-  }).catch(webhookError => {
-    console.error('FALHA GRAVE: Erro de rede ou CORS ao tentar enviar webhook. Veja os detalhes abaixo:', webhookError);
-  });
+
+    console.log('%cSUCESSO: Edge Function respondeu:', 'color: lightgreen; font-weight: bold;', result);
+
+  } catch (error) {
+    console.error('FALHA GRAVE: Erro ao chamar a Edge Function:', error);
+  }
 };
