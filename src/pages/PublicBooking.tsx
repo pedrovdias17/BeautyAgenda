@@ -168,7 +168,12 @@ export default function PublicBooking() {
       ...existingAppointments.map(app => {
         const [hours, minutes] = app.time.split(':').map(Number);
         const start = hours * 60 + minutes;
-        const end = start + (app.duration || 60) + bufferTime;
+        
+        // --- CORREÇÃO PRINCIPAL AQUI ---
+        // Verificação mais robusta para garantir que a duração seja um número válido.
+        const existingAppointmentDuration = (app.duration && typeof app.duration === 'number') ? app.duration : 60;
+        const end = start + existingAppointmentDuration + bufferTime;
+        
         return { start, end };
       }),
       ...timeBlocks.map(block => {
@@ -176,10 +181,13 @@ export default function PublicBooking() {
         const [endHours, endMinutes] = block.end.split(':').map(Number);
         return { start: startHours * 60 + startMinutes, end: endHours * 60 + endMinutes };
       })
-    ].sort((a, b) => a.start - b.start); // Ordenar os bloqueios é crucial para a lógica de pulo
+    ].sort((a, b) => a.start - b.start);
+
+    // Linha de depuração que você pode usar para confirmar
+    console.log('Blocos Ocupados (Versão Corrigida):', occupiedSlots);
 
     const availableSlots = [];
-    let currentTime = workDayStart; // Este é o nosso "ponteiro"
+    let currentTime = workDayStart;
 
     while (currentTime + serviceDuration <= workDayEnd) {
       const slotStart = currentTime;
@@ -195,15 +203,11 @@ export default function PublicBooking() {
       }
 
       if (overlappingBlock) {
-        // Se há sobreposição, pule o ponteiro para o final do bloco ocupado
         currentTime = overlappingBlock.end;
       } else {
-        // Se não há sobreposição, este é um horário válido!
         const hours = Math.floor(currentTime / 60).toString().padStart(2, '0');
         const minutes = (currentTime % 60).toString().padStart(2, '0');
         availableSlots.push(`${hours}:${minutes}`);
-
-        // Avance o ponteiro pelo tempo total do serviço + buffer
         currentTime += totalSlotDuration;
       }
     }
