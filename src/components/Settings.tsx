@@ -15,6 +15,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase'; // Importação necessária
 import { Usuario } from '../lib/supabase';
 
 function FormMessage({ type, text }: { type: 'success' | 'error', text: string }) {
@@ -67,7 +68,7 @@ export default function Settings() {
         customUrl: usuario.slug || '',
         workingHours: usuario.configuracoes?.workingHours || prev.workingHours,
         blockedDates: usuario.configuracoes?.blockedDates || [],
-        paymentKey: usuario.configuracoes?.paymentKey || prev.paymentKey,
+        paymentKey: '', // A chave nunca é carregada do banco para o frontend
         bookingSettings: usuario.configuracoes?.bookingSettings || prev.bookingSettings,
       }));
     }
@@ -85,34 +86,57 @@ export default function Settings() {
   ];
 
   const handleSave = async () => {
+    if (!usuario) return;
     setIsSaving(true);
     setMessage(null);
 
-    const profileDataToUpdate = {
-      nome_studio: settings.studioName,
-      nome: settings.ownerName,
-      telefone: settings.phone,
-      endereco: settings.address,
-      slug: settings.customUrl,
-      configuracoes: {
-        workingHours: settings.workingHours,
-        blockedDates: settings.blockedDates,
-        paymentKey: settings.paymentKey,
-        bookingSettings: settings.bookingSettings
-      }
-    };
-    
-    const result = await updateProfile(profileDataToUpdate);
+    try {
+      // Passo 1: Salvar a chave secreta via Edge Function (se ela foi alterada)
+      if (settings.paymentKey) {
+        const { error: functionError } = await supabase.functions.invoke('save-secret', {
+          body: {
+            name: `mercado_pago_key_${usuario.id}`, // Nome padronizado para o segredo
+            secret: settings.paymentKey
+          }
+        });
 
-    if (result.success) {
+        if (functionError) {
+          throw new Error(`Erro ao salvar a chave de pagamento: ${functionError.message}`);
+        }
+      }
+
+      // Passo 2: Salvar o restante das configurações (sem a chave)
+      const profileDataToUpdate = {
+        nome_studio: settings.studioName,
+        nome: settings.ownerName,
+        telefone: settings.phone,
+        endereco: settings.address,
+        slug: settings.customUrl,
+        configuracoes: {
+          workingHours: settings.workingHours,
+          blockedDates: settings.blockedDates,
+          // A 'paymentKey' é intencionalmente omitida daqui
+          bookingSettings: settings.bookingSettings
+        }
+      };
+      
+      const result = await updateProfile(profileDataToUpdate);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro desconhecido ao salvar perfil.');
+      }
+
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
-    } else {
-      setMessage({ type: 'error', text: `Erro ao salvar: ${result.error}` });
+      setSettings(prev => ({ ...prev, paymentKey: '' })); // Limpa o campo da chave após salvar
+
+    } catch (error: any) {
+      setMessage({ type: 'error', text: `Erro: ${error.message}` });
+    } finally {
+      setTimeout(() => setMessage(null), 5000);
+      setIsSaving(false);
     }
-    
-    setTimeout(() => setMessage(null), 5000);
-    setIsSaving(false);
   };
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -126,7 +150,6 @@ export default function Settings() {
     { id: 'sunday', label: 'Domingo' }
   ];
 
-  // FUNÇÕES DE HORÁRIO COM ERRO DE DIGITAÇÃO CORRIGIDO
   const addBreak = (dayId: string) => {
     setSettings(prev => ({
       ...prev,
@@ -164,6 +187,24 @@ export default function Settings() {
     });
     
     setSettings(prev => ({ ...prev, workingHours: newWorkingHours }));
+  };
+  
+  const [newBlockDate, setNewBlockDate] = useState('');
+  const [newBlockReason, setNewBlockReason] = useState('');
+
+  const handleAddBlock = (date: string, reason: string) => {
+    if (date) {
+      const newBlock = {
+        date: date,
+        profissional_id: usuario?.id || '',
+        motivo: reason || undefined
+      };
+      
+      setSettings(prev => ({
+        ...prev,
+        blockedDates: [...prev.blockedDates, newBlock].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      }));
+    }
   };
 
   return (
@@ -212,7 +253,7 @@ export default function Settings() {
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" value={settings.email} disabled className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"/></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label><input type="tel" value={settings.phone} onChange={(e) => setSettings(prev => ({ ...prev, phone: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                   <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label><input type="text" value={settings.address} onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
-                  <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">URL Personalizada</label><div className="flex items-center"><input type="text" value={settings.customUrl} onChange={(e) => setSettings(prev => ({ ...prev, customUrl: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-l-lg"/><span className="px-4 py-2 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg text-gray-600">.agendpro.shop</span></div></div>
+                  <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">URL Personalizada</label><div className="flex items-center"><span className="px-4 py-2 bg-gray-100 border-t border-b border-l border-gray-300 rounded-l-lg text-gray-600">agend-pro.vercel.app/booking/</span><input type="text" value={settings.customUrl} onChange={(e) => setSettings(prev => ({ ...prev, customUrl: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-r-lg"/></div></div>
                 </div>
               </div>
             )}
@@ -231,7 +272,7 @@ export default function Settings() {
                             <input type="checkbox" checked={daySchedule.enabled} onChange={(e) => setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, enabled: e.target.checked }}}))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
                             <h3 className="font-medium text-gray-900">{day.label}</h3>
                           </div>
-                          <button onClick={() => copyScheduleToOtherDays(day.id)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Copiar para outros dias</button>
+                          {day.id !== 'saturday' && day.id !== 'sunday' && <button onClick={() => copyScheduleToOtherDays(day.id)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Copiar para outros dias</button>}
                         </div>
                         {daySchedule.enabled && (
                           <div className="space-y-4">
@@ -241,8 +282,6 @@ export default function Settings() {
                             </div>
                             <div>
                               <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium text-gray-700">Pausas/Intervalos</label><button onClick={() => addBreak(day.id)} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1"><Plus size={14} /><span>Adicionar pausa</span></button></div>
-                              
-                              {/* --- LINHA CORRIGIDA COM A "REDE DE SEGURANÇA" --- */}
                               {(daySchedule.breaks || []).map((breakTime, index) => (
                                 <div key={index} className="flex items-center space-x-2 mb-2">
                                   <input type="time" value={breakTime.start} onChange={(e) => { const newBreaks = [...(daySchedule.breaks || [])]; newBreaks[index] = { ...breakTime, start: e.target.value }; setSettings(prev => ({...prev, workingHours: {...prev.workingHours, [day.id]: { ...daySchedule, breaks: newBreaks }}}));}} className="px-3 py-1 border border-gray-300 rounded text-sm"/>
@@ -285,57 +324,24 @@ export default function Settings() {
                 <div className="space-y-6">
                   <div className="mb-4">
                     <h3 className="font-medium text-gray-900 mb-3">Adicionar Novo Bloqueio</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      handleAddBlock(newBlockDate, newBlockReason);
+                      setNewBlockDate('');
+                      setNewBlockReason('');
+                    }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
-                        <input 
-                          type="date" 
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                          onChange={(e) => {
-                            const selectedDate = e.target.value;
-                            const tempBlock = document.getElementById('temp-block-date') as HTMLInputElement;
-                            if (tempBlock) tempBlock.value = selectedDate;
-                          }}
-                        />
+                        <input type="date" required value={newBlockDate} onChange={(e) => setNewBlockDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Motivo (opcional)</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                          placeholder="Ex: Feriado, Folga, etc."
-                          id="temp-block-reason"
-                        />
+                        <input type="text" value={newBlockReason} onChange={(e) => setNewBlockReason(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex: Feriado, Folga, etc."/>
                       </div>
                       <div className="flex items-end">
-                        <button 
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                          onClick={() => {
-                            const dateInput = document.getElementById('temp-block-date') as HTMLInputElement;
-                            const reasonInput = document.getElementById('temp-block-reason') as HTMLInputElement;
-                            
-                            if (dateInput && dateInput.value) {
-                              const newBlock = {
-                                date: dateInput.value,
-                                profissional_id: usuario?.id || '',
-                                motivo: reasonInput?.value || undefined
-                              };
-                              
-                              setSettings(prev => ({
-                                ...prev,
-                                blockedDates: [...prev.blockedDates, newBlock]
-                              }));
-                              
-                              // Limpar campos
-                              if (reasonInput) reasonInput.value = '';
-                            }
-                          }}
-                        >
-                          Adicionar Bloqueio
-                        </button>
-                        <input type="hidden" id="temp-block-date" />
+                        <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Adicionar Bloqueio</button>
                       </div>
-                    </div>
+                    </form>
                   </div>
                   
                   <div>
@@ -398,3 +404,4 @@ export default function Settings() {
     </div>
   );
 }
+
