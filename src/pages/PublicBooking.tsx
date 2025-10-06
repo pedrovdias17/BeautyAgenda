@@ -49,7 +49,6 @@ export default function PublicBooking() {
   const [existingAppointments, setExistingAppointments] = useState<{time: string, duration: number}[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<{start: string, end: string}[]>([]);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
-  // --- 1. NOVO ESTADO PARA GUARDAR OS HORÁRIOS DA SEMANA ---
   const [workingHours, setWorkingHours] = useState<WorkingHours | null>(null);
 
   useEffect(() => {
@@ -81,7 +80,6 @@ export default function PublicBooking() {
       });
       setOwnerId(owner.id);
       
-      // --- 2. POPULANDO OS NOVOS ESTADOS COM DADOS DAS CONFIGURAÇÕES ---
       if (owner.configuracoes) {
         if (owner.configuracoes.blockedDates) {
           const dates = owner.configuracoes.blockedDates.map((block: any) => block.date);
@@ -187,21 +185,18 @@ export default function PublicBooking() {
   }, [blockedDates]);
 
   const timeSlots = useMemo(() => {
-    // --- 3. LÓGICA DO useMemo COMPLETAMENTE ATUALIZADA ---
-
-    // Checagens iniciais
-    if (blockedDates.includes(selectedDate)) return [];
+    if (blockedDates.includes(selectedDate)) {
+      return [];
+    }
     if (!selectedServiceData || !selectedProfessional || !selectedDate || !workingHours) {
       return [];
     }
     
-    // Descobrir o dia da semana para a data selecionada
     const dayIndex = new Date(`${selectedDate}T00:00:00`).getDay();
     const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayKey = dayMap[dayIndex];
     const daySchedule = workingHours[dayKey];
 
-    // Se o dia não está configurado ou está desabilitado (folga)
     if (!daySchedule || !daySchedule.enabled) {
       return [];
     }
@@ -210,13 +205,11 @@ export default function PublicBooking() {
     const bufferTime = 15;
     const totalSlotDuration = serviceDuration + bufferTime;
 
-    // Horários de início e fim dinâmicos, baseados na configuração
     const [startH, startM] = daySchedule.start.split(':').map(Number);
     const workDayStart = startH * 60 + startM;
     const [endH, endM] = daySchedule.end.split(':').map(Number);
     const workDayEnd = endH * 60 + endM;
 
-    // Adiciona as PAUSAS do dia à lista de bloqueios
     const occupiedSlots = [
       ...existingAppointments.map(app => {
         const [hours, minutes] = app.time.split(':').map(Number);
@@ -240,7 +233,6 @@ export default function PublicBooking() {
       })
     ].sort((a, b) => a.start - b.start);
 
-    // O resto da lógica de ponteiro continua a mesma, pois é robusta
     const availableSlots = [];
     let currentTime = workDayStart;
 
@@ -269,14 +261,93 @@ export default function PublicBooking() {
     return availableSlots;
   }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData, blockedDates, workingHours]);
 
-  const availableProfessionals = (() => { /* ...código sem alterações... */ })();
-  const handleServiceSelect = (serviceId: string) => { /* ...código sem alterações... */ };
+  const availableProfessionals = (() => {
+    if (!selectedService) return professionals;
+    const service = services.find(s => s.id === selectedService);
+    if (!service) return [];
+    return professionals.filter(p => p.id === service.professionalId);
+  })();
+
+  const handleServiceSelect = (serviceId: string) => {
+    setSelectedService(serviceId);
+    const service = services.find(s => s.id === serviceId);
+    if (service) { setSelectedProfessional(service.professionalId); }
+  };
+
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
-  const handleSubmit = async () => { /* ...código sem alterações... */ };
 
-  if (isLoading) { /* ...código sem alterações... */ }
-  if (!isLoading && (!services || services.length === 0)) { /* ...código sem alterações... */ }
+  const handleSubmit = async () => {
+    if (!clientData.name.trim() || !clientData.phone.trim()) {
+      alert('Por favor, preencha seu nome e telefone.'); return;
+    }
+    const phoneDigits = clientData.phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      alert('Por favor, digite um telefone válido com DDD.'); return;
+    }
+    if (clientData.email && !/\S+@\S+\.\S+/.test(clientData.email)) {
+      alert('Por favor, digite um email válido.'); return;
+    }
+    if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime || !ownerId) {
+      alert('Por favor, preencha todos os dados do agendamento.'); return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const { data: clientResult, error: clientError } = await supabase.rpc('find_or_create_client', {
+        p_owner_id: ownerId, p_name: clientData.name, p_phone: clientData.phone,
+        p_email: clientData.email, p_last_visit: selectedDate
+      });
+      if(clientError) throw clientError;
+
+      const clientId = clientResult;
+      
+      const appointmentData = {
+        usuario_id: ownerId, cliente_id: clientId, servico_id: selectedService,
+        profissional_id: selectedProfessional, data_agendamento: selectedDate,
+        hora_agendamento: selectedTime, status: 'pending' as 'pending',
+        status_pagamento: (selectedServiceData?.requiresSignal ? 'pending' : 'paid') as 'pending' | 'paid',
+        valor_sinal: selectedServiceData?.requiresSignal ? selectedServiceData.signalAmount : 0,
+        valor_total: selectedServiceData?.price || 0
+      };
+
+      const { data: newAppointment, error: appointmentError } = await supabase
+        .from('agendamentos').insert(appointmentData).select().single();
+      if(appointmentError) throw appointmentError;
+      
+      if (newAppointment) {
+        const clientRecordForWebhook: Client = {
+          id: clientId, usuario_id: ownerId!, nome: clientData.name,
+          telefone: clientData.phone, email: clientData.email,
+          total_agendamentos: 1, ultima_visita: selectedDate
+        };
+        
+        sendNewAppointmentWebhook({
+          newAppointment: newAppointment as Appointment,
+          clientRecord: clientRecordForWebhook,
+          serviceDetails: selectedServiceData,
+          professionalDetails: selectedProfessionalData,
+          user: { id: ownerId! } as any
+        });
+      }
+      
+      setStep(5);
+    } catch (error: any) {
+      console.error('Falha ao criar agendamento:', error);
+      alert(`Erro ao criar agendamento: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando informações do negócio...</div>;
+  }
+  
+  if (!isLoading && (!services || services.length === 0)) {
+    return <div className="min-h-screen flex items-center justify-center p-4 text-center">Este negócio não foi encontrado ou não tem serviços disponíveis.</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
