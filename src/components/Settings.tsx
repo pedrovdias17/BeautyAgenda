@@ -355,7 +355,7 @@ export default function Settings() {
                           <tbody className="bg-white divide-y divide-gray-200">
                             {settings.blockedDates.map((block, index) => (
                               <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(block.date).toLocaleDateString('pt-BR')}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(block.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{block.motivo || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                   <button 

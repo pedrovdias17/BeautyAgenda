@@ -32,6 +32,7 @@ export default function PublicBooking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingAppointments, setExistingAppointments] = useState<{time: string, duration: number}[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<{start: string, end: string}[]>([]);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]); // <-- 1. NOVO ESTADO ADICIONADO
 
   useEffect(() => {
     if (!slug) {
@@ -44,7 +45,7 @@ export default function PublicBooking() {
       
       const { data: owner, error: ownerError } = await supabase
         .from('usuarios')
-        .select('id, nome_studio, endereco, telefone')
+        .select('id, nome_studio, endereco, telefone, configuracoes') // <-- 2. QUERY ATUALIZADA
         .eq('slug', slug)
         .single();
 
@@ -61,6 +62,12 @@ export default function PublicBooking() {
         phone: owner.telefone || 'Telefone não informado'
       });
       setOwnerId(owner.id);
+      
+      // 3. POPULANDO O NOVO ESTADO COM AS DATAS BLOQUEADAS
+      if (owner.configuracoes && owner.configuracoes.blockedDates) {
+        const dates = owner.configuracoes.blockedDates.map((block: any) => block.date);
+        setBlockedDates(dates);
+      }
 
       const { data: servicesData, error: servicesError } = await supabase
         .from('servicos')
@@ -153,6 +160,11 @@ export default function PublicBooking() {
   }, [selectedDate, selectedProfessional, supabase]);
 
   const timeSlots = useMemo(() => {
+    // 4. LÓGICA DE BLOQUEIO APLICADA NO INÍCIO
+    if (blockedDates.includes(selectedDate)) {
+      return []; // Retorna um array vazio se a data inteira estiver bloqueada
+    }
+
     if (!selectedServiceData || !selectedProfessional || !selectedDate) {
       return [];
     }
@@ -169,8 +181,6 @@ export default function PublicBooking() {
         const [hours, minutes] = app.time.split(':').map(Number);
         const start = hours * 60 + minutes;
         
-        // --- CORREÇÃO PRINCIPAL AQUI ---
-        // Verificação mais robusta para garantir que a duração seja um número válido.
         const existingAppointmentDuration = (app.duration && typeof app.duration === 'number') ? app.duration : 60;
         const end = start + existingAppointmentDuration + bufferTime;
         
@@ -182,9 +192,6 @@ export default function PublicBooking() {
         return { start: startHours * 60 + startMinutes, end: endHours * 60 + endMinutes };
       })
     ].sort((a, b) => a.start - b.start);
-
-    // Linha de depuração que você pode usar para confirmar
-    console.log('Blocos Ocupados (Versão Corrigida):', occupiedSlots);
 
     const availableSlots = [];
     let currentTime = workDayStart;
@@ -213,7 +220,7 @@ export default function PublicBooking() {
     }
 
     return availableSlots;
-  }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData]);
+  }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData, blockedDates]); // <-- 5. DEPENDÊNCIA ATUALIZADA
 
   const availableProfessionals = (() => {
     if (!selectedService) return professionals;
