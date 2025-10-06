@@ -11,7 +11,8 @@ import {
   Scissors,
   Crown,
   MessageCircle,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';

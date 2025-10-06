@@ -30,6 +30,8 @@ export default function PublicBooking() {
   const [selectedTime, setSelectedTime] = useState('');
   const [clientData, setClientData] = useState({ name: '', phone: '', email: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingAppointments, setExistingAppointments] = useState<{time: string, duration: number}[]>([]);
+  const [timeBlocks, setTimeBlocks] = useState<{start: string, end: string}[]>([]);
 
   useEffect(() => {
     if (!slug) {
@@ -107,15 +109,136 @@ export default function PublicBooking() {
   const selectedServiceData = services.find(s => s.id === selectedService);
   const selectedProfessionalData = professionals.find(p => p.id === selectedProfessional);
 
-  const generateTimeSlots = () => {
+  // Função para buscar agendamentos existentes e bloqueios quando a data ou profissional mudar
+  useEffect(() => {
+    const fetchExistingAppointments = async () => {
+      if (!selectedDate || !selectedProfessional) return;
+      
+      setIsLoading(true);
+      try {
+        // Buscar agendamentos existentes para o profissional na data selecionada
+        const { data: appointments, error: appointmentsError } = await supabase
+          .from('agendamentos')
+          .select('hora_agendamento, servicos(duration)')
+          .eq('data_agendamento', selectedDate)
+          .eq('profissional_id', selectedProfessional)
+          .neq('status', 'cancelled');
+        
+        if (appointmentsError) throw appointmentsError;
+        
+        // Formatar os agendamentos existentes
+        const existingSlots = appointments?.map(app => ({
+          time: app.hora_agendamento,
+          duration: app.servicos?.duration || 60
+        })) || [];
+        
+        console.log("Agendamentos carregados para", selectedDate, ":", existingSlots);
+        setExistingAppointments(existingSlots);
+        
+        // Buscar bloqueios de horário do profissional
+        const { data: blocks, error: blocksError } = await supabase
+          .from('bloqueios_horario')
+          .select('hora_inicio, hora_fim')
+          .eq('data', selectedDate)
+          .eq('profissional_id', selectedProfessional);
+        
+        if (blocksError) throw blocksError;
+        
+        setTimeBlocks(blocks?.map(block => ({
+          start: block.hora_inicio,
+          end: block.hora_fim
+        })) || []);
+        
+      } catch (error) {
+        console.error('Erro ao buscar horários ocupados:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchExistingAppointments();
+  }, [selectedDate, selectedProfessional, supabase]);
+
+  // Usar useMemo para recalcular os horários quando as dependências mudarem
+  const timeSlots = React.useMemo(() => {
+    console.log("Recalculando horários disponíveis...");
+    console.log("Agendamentos existentes:", existingAppointments);
+    console.log("Bloqueios de tempo:", timeBlocks);
+    
     const slots = [];
-    for (let hour = 8; hour <= 17; hour++) { for (let minute = 0; minute < 60; minute += 60) {
+    // Gerar todos os horários possíveis
+    for (let hour = 8; hour <= 17; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
         const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         slots.push(time);
-    } }
-    return slots;
-  };
-  const timeSlots = generateTimeSlots();
+      }
+    }
+    
+    // Se não tiver data ou profissional selecionado, retorna todos os slots
+    if (!selectedDate || !selectedProfessional) return slots;
+    
+    // Solução simplificada e direta para garantir que funcione
+    return slots.filter(time => {
+      // Verificar se o horário está em algum agendamento existente
+      for (const app of existingAppointments) {
+        if (app.time === time) {
+          return false; // Horário exatamente igual a um agendamento existente
+        }
+        
+        // Verificar se o horário está dentro do período de um agendamento existente
+        const [appHours, appMinutes] = app.time.split(':').map(Number);
+        const appStartTime = new Date(2023, 0, 1, appHours, appMinutes);
+        
+        const appEndTime = new Date(appStartTime);
+        appEndTime.setMinutes(appEndTime.getMinutes() + app.duration);
+        
+        // Adicionar 15 minutos de intervalo após o agendamento
+        const cooldownEndTime = new Date(appEndTime);
+        cooldownEndTime.setMinutes(cooldownEndTime.getMinutes() + 15);
+        
+        // Converter o horário atual para comparação
+        const [currentHours, currentMinutes] = time.split(':').map(Number);
+        const currentTime = new Date(2023, 0, 1, currentHours, currentMinutes);
+        
+        // Verificar se o horário atual está dentro do período do agendamento ou do intervalo
+        if (currentTime >= appStartTime && currentTime < cooldownEndTime) {
+          return false;
+        }
+        
+        // Se tiver serviço selecionado, verificar se o fim do serviço conflita com algum agendamento
+        if (selectedServiceData) {
+          const serviceDuration = selectedServiceData.duration || 60;
+          const serviceEndTime = new Date(currentTime);
+          serviceEndTime.setMinutes(serviceEndTime.getMinutes() + serviceDuration);
+          
+          // Verificar se o serviço atual conflita com algum agendamento existente
+          if (
+            (currentTime < appStartTime && serviceEndTime > appStartTime) || // Serviço começa antes e termina durante/depois
+            (currentTime >= appStartTime && currentTime < appEndTime) // Serviço começa durante
+          ) {
+            return false;
+          }
+          
+          // Verificar se o serviço atual termina dentro do período de intervalo
+          const bufferStartTime = new Date(appStartTime);
+          bufferStartTime.setMinutes(bufferStartTime.getMinutes() - 15);
+          
+          if (serviceEndTime > bufferStartTime && serviceEndTime <= appStartTime) {
+            return false;
+          }
+        }
+      }
+      
+      // Verificar se o horário está dentro de algum bloco de tempo bloqueado
+      for (const block of timeBlocks) {
+        if (time >= block.start && time < block.end) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData]);
 
   const availableProfessionals = (() => {
     if (!selectedService) return professionals;

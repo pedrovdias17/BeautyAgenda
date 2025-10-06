@@ -43,6 +43,7 @@ export default function Settings() {
       saturday: { enabled: false, start: '09:00', end: '13:00', breaks: [] as {start: string, end: string}[] },
       sunday: { enabled: false, start: '09:00', end: '13:00', breaks: [] as {start: string, end: string}[] }
     },
+    blockedDates: [] as {date: string, profissional_id: string, motivo?: string}[],
     paymentKey: '',
     bookingSettings: {
       allowCancellation: true,
@@ -65,6 +66,7 @@ export default function Settings() {
         address: usuario.endereco || '',
         customUrl: usuario.slug || '',
         workingHours: usuario.configuracoes?.workingHours || prev.workingHours,
+        blockedDates: usuario.configuracoes?.blockedDates || [],
         paymentKey: usuario.configuracoes?.paymentKey || prev.paymentKey,
         bookingSettings: usuario.configuracoes?.bookingSettings || prev.bookingSettings,
       }));
@@ -76,6 +78,7 @@ export default function Settings() {
   const tabs = [
     { id: 'profile', label: 'Perfil', icon: User },
     { id: 'availability', label: 'Disponibilidade', icon: Clock },
+    { id: 'blockedTimes', label: 'Bloqueios de Horário', icon: Clock },
     { id: 'payments', label: 'Pagamentos', icon: CreditCard },
     { id: 'public', label: 'Página Pública', icon: Globe },
     { id: 'legal', label: 'Termos e Privacidade', icon: FileText }
@@ -93,6 +96,7 @@ export default function Settings() {
       slug: settings.customUrl,
       configuracoes: {
         workingHours: settings.workingHours,
+        blockedDates: settings.blockedDates,
         paymentKey: settings.paymentKey,
         bookingSettings: settings.bookingSettings
       }
@@ -271,6 +275,108 @@ export default function Settings() {
                 <div className="space-y-6">
                   <div className="p-4 bg-green-50 rounded-lg"><h3 className="font-medium text-green-900 mb-2">Seu Link de Agendamento</h3><p className="text-sm text-green-700 mb-3">Este é o link para compartilhar com seus clientes.</p><div className="flex items-center space-x-3 p-3 bg-white rounded-lg border"><input type="text" value={fullPublicUrl} readOnly className="flex-1 bg-transparent text-sm text-gray-600 focus:outline-none"/><button onClick={() => copyToClipboard(fullPublicUrl)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"><Copy size={16} /></button><a href={fullPublicUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"><ExternalLink size={16} /></a></div></div>
                   <div className="p-4 bg-blue-50 rounded-lg"><h3 className="font-medium text-blue-900 mb-2">Como usar:</h3><ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside"><li>Copie o link acima.</li><li>Compartilhe no seu WhatsApp, Instagram, ou onde preferir.</li><li>Seus clientes poderão agendar diretamente por ele.</li></ol></div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'blockedTimes' && (
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Bloqueios de Horário</h2>
+                <div className="space-y-6">
+                  <div className="mb-4">
+                    <h3 className="font-medium text-gray-900 mb-3">Adicionar Novo Bloqueio</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
+                        <input 
+                          type="date" 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                          onChange={(e) => {
+                            const selectedDate = e.target.value;
+                            const tempBlock = document.getElementById('temp-block-date') as HTMLInputElement;
+                            if (tempBlock) tempBlock.value = selectedDate;
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Motivo (opcional)</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                          placeholder="Ex: Feriado, Folga, etc."
+                          id="temp-block-reason"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button 
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          onClick={() => {
+                            const dateInput = document.getElementById('temp-block-date') as HTMLInputElement;
+                            const reasonInput = document.getElementById('temp-block-reason') as HTMLInputElement;
+                            
+                            if (dateInput && dateInput.value) {
+                              const newBlock = {
+                                date: dateInput.value,
+                                profissional_id: usuario?.id || '',
+                                motivo: reasonInput?.value || undefined
+                              };
+                              
+                              setSettings(prev => ({
+                                ...prev,
+                                blockedDates: [...prev.blockedDates, newBlock]
+                              }));
+                              
+                              // Limpar campos
+                              if (reasonInput) reasonInput.value = '';
+                            }
+                          }}
+                        >
+                          Adicionar Bloqueio
+                        </button>
+                        <input type="hidden" id="temp-block-date" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-3">Bloqueios Atuais</h3>
+                    {settings.blockedDates.length === 0 ? (
+                      <p className="text-gray-500 italic">Nenhum bloqueio de horário configurado.</p>
+                    ) : (
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Motivo</th>
+                              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {settings.blockedDates.map((block, index) => (
+                              <tr key={index}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(block.date).toLocaleDateString('pt-BR')}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{block.motivo || '-'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <button 
+                                    onClick={() => {
+                                      setSettings(prev => ({
+                                        ...prev,
+                                        blockedDates: prev.blockedDates.filter((_, i) => i !== index)
+                                      }));
+                                    }}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
