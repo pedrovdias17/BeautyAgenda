@@ -15,7 +15,11 @@ import Sidebar from './components/Sidebar';
 import SubscriptionGuard from './components/SubscriptionGuard'; 
 
 // Páginas Públicas e da Área do Cliente
+import Appointments from './pages/Appointments';
+import AppointmentDetails from './pages/AppointmentDetails';
 import PublicBooking from './pages/PublicBooking';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentCancel from './pages/PaymentCancel';
 import ClientLogin from './pages/ClientLogin';
 import ClientArea from './pages/ClientArea';
 
@@ -55,6 +59,7 @@ function AdminArea() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/upgrade" element={<Upgrade />} />
             <Route path="/legal" element={<Legal />} />
+
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </SubscriptionGuard>
