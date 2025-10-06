@@ -73,7 +73,7 @@ export default function Settings() {
     }
   }, [usuario]);
 
-  const fullPublicUrl = `https://beauty-agenda.vercel.app/booking/${settings.customUrl}`;
+  const fullPublicUrl = `https://agend-pro.vercel.app/booking/${settings.customUrl}`;
 
   const tabs = [
     { id: 'profile', label: 'Perfil', icon: User },
