@@ -4,8 +4,14 @@ import { supabase } from '../lib/supabase';
 import { Professional, Service, Client, Appointment } from '../contexts/DataContext';
 import { sendNewAppointmentWebhook } from '../services/notificationService';
 import { 
-  Scissors, MapPin, Star, Clock, User, DollarSign, Check, Phone, Mail 
+  Scissors, MapPin, Clock, User, DollarSign, Check, Phone, Mail 
 } from 'lucide-react';
+import DatePicker, { registerLocale } from "react-datepicker";
+import { ptBR } from 'date-fns/locale/pt-BR';
+import "react-datepicker/dist/react-datepicker.css";
+
+// REGISTRO DO IDIOMA PORTUGUÊS-BR
+registerLocale('pt-BR', ptBR);
 
 interface StudioInfo {
   name: string;
@@ -32,7 +38,7 @@ export default function PublicBooking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingAppointments, setExistingAppointments] = useState<{time: string, duration: number}[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<{start: string, end: string}[]>([]);
-  const [blockedDates, setBlockedDates] = useState<string[]>([]); // <-- 1. NOVO ESTADO ADICIONADO
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   useEffect(() => {
     if (!slug) {
@@ -45,7 +51,7 @@ export default function PublicBooking() {
       
       const { data: owner, error: ownerError } = await supabase
         .from('usuarios')
-        .select('id, nome_studio, endereco, telefone, configuracoes') // <-- 2. QUERY ATUALIZADA
+        .select('id, nome_studio, endereco, telefone, configuracoes')
         .eq('slug', slug)
         .single();
 
@@ -63,7 +69,6 @@ export default function PublicBooking() {
       });
       setOwnerId(owner.id);
       
-      // 3. POPULANDO O NOVO ESTADO COM AS DATAS BLOQUEADAS
       if (owner.configuracoes && owner.configuracoes.blockedDates) {
         const dates = owner.configuracoes.blockedDates.map((block: any) => block.date);
         setBlockedDates(dates);
@@ -157,12 +162,15 @@ export default function PublicBooking() {
     };
     
     fetchExistingAppointments();
-  }, [selectedDate, selectedProfessional, supabase]);
+  }, [selectedDate, selectedProfessional]);
+
+  const blockedDateObjects = useMemo(() => {
+    return blockedDates.map(dateStr => new Date(`${dateStr}T00:00:00`));
+  }, [blockedDates]);
 
   const timeSlots = useMemo(() => {
-    // 4. LÓGICA DE BLOQUEIO APLICADA NO INÍCIO
     if (blockedDates.includes(selectedDate)) {
-      return []; // Retorna um array vazio se a data inteira estiver bloqueada
+      return [];
     }
 
     if (!selectedServiceData || !selectedProfessional || !selectedDate) {
@@ -180,10 +188,8 @@ export default function PublicBooking() {
       ...existingAppointments.map(app => {
         const [hours, minutes] = app.time.split(':').map(Number);
         const start = hours * 60 + minutes;
-        
         const existingAppointmentDuration = (app.duration && typeof app.duration === 'number') ? app.duration : 60;
         const end = start + existingAppointmentDuration + bufferTime;
-        
         return { start, end };
       }),
       ...timeBlocks.map(block => {
@@ -199,7 +205,6 @@ export default function PublicBooking() {
     while (currentTime + serviceDuration <= workDayEnd) {
       const slotStart = currentTime;
       const slotEnd = currentTime + serviceDuration;
-      
       let overlappingBlock = null;
 
       for (const occupied of occupiedSlots) {
@@ -220,7 +225,7 @@ export default function PublicBooking() {
     }
 
     return availableSlots;
-  }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData, blockedDates]); // <-- 5. DEPENDÊNCIA ATUALIZADA
+  }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData, blockedDates]);
 
   const availableProfessionals = (() => {
     if (!selectedService) return professionals;
@@ -379,12 +384,23 @@ export default function PublicBooking() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
-                  <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
+                  <DatePicker
+                    locale="pt-BR"
+                    selected={selectedDate ? new Date(`${selectedDate}T00:00:00`) : null}
+                    onChange={(date: Date | null) => {
+                      setSelectedDate(date ? date.toISOString().split('T')[0] : '');
+                    }}
+                    minDate={new Date()}
+                    excludeDates={blockedDateObjects}
+                    dateFormat="dd/MM/yyyy"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholderText="Escolha uma data"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Horário</label>
-                  <select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                    <option value="">Selecione um horário</option>
+                  <select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} disabled={!selectedDate} className="w-full px-4 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100">
+                    <option value="">{selectedDate ? 'Selecione um horário' : 'Escolha uma data primeiro'}</option>
                     {timeSlots.map((time) => (<option key={time} value={time}>{time}</option>))}
                   </select>
                 </div>
