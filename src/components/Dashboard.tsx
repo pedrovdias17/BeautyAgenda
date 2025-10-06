@@ -7,44 +7,50 @@ import {
   TrendingUp,
   Clock,
   CheckCircle,
-  XCircle,
-  AlertCircle,
   Settings as SettingsIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
-  const { appointments, clients, services } = useData();
+  const { appointments, clients } = useData();
   const navigate = useNavigate();
 
-  // --- LÓGICA DE CÁLCULO DAS MÉTRICAS (CORRIGIDA) ---
-  const today = new Date().toISOString().split('T')[0];
-  const todayAppointments = appointments.filter(apt => apt.data_agendamento === today);
-  const completedAppointments = appointments.filter(apt => apt.status === 'completed');
+  // --- 1. LÓGICA DE CÁLCULO DAS MÉTRICAS (CORRIGIDA PARA O MÊS ATUAL) ---
+  const now = new Date();
+  const todayISO = now.toISOString().split('T')[0];
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0 = Janeiro, 11 = Dezembro
 
-  const totalRevenue = appointments
-    .filter(apt => 
-      // REGRA CORRIGIDA: Soma se estiver concluído OU se o pagamento for integral/parcial
-      apt.status === 'completed' || 
-      apt.status_pagamento === 'paid' || 
-      apt.status_pagamento === 'partial'
-    )
-    .reduce((sum, apt) => {
-      // Se o pagamento for parcial, soma apenas o valor do sinal.
-      if (apt.status_pagamento === 'partial') {
-        return sum + (apt.valor_sinal || 0);
-      }
-      // Se for pago ou concluído, soma o valor total do serviço.
-      const service = services.find(s => s.id === apt.servico_id);
-      return sum + (service?.price || 0);
-    }, 0);
+  // Filtra agendamentos apenas para o mês e ano correntes
+  const appointmentsThisMonth = appointments.filter(apt => {
+    const aptDate = new Date(apt.data_agendamento + 'T00:00:00');
+    return aptDate.getFullYear() === currentYear && aptDate.getMonth() === currentMonth;
+  });
 
-  const completionRate = appointments.length > 0 
-    ? Math.round((completedAppointments.length / appointments.length) * 100)
+  // Agendamentos de hoje (continua como estava, é diário)
+  const todayAppointments = appointments.filter(apt => apt.data_agendamento === todayISO);
+
+  // Métrica 'Concluídos (mês)' - CORRIGIDA
+  const completedAppointmentsThisMonth = appointmentsThisMonth.filter(apt => apt.status === 'completed');
+
+  // Métrica 'Faturamento (mês)' - CORRIGIDA
+  // Soma o valor_total apenas de agendamentos concluídos no mês atual.
+  const totalRevenueThisMonth = completedAppointmentsThisMonth.reduce((sum, apt) => {
+    return sum + (apt.valor_total || 0);
+  }, 0);
+
+  // Métrica 'Taxa de Conclusão' - CORRIGIDA E MAIS PRECISA
+  // Calcula a taxa baseada nos agendamentos que tiveram um desfecho (concluído ou cancelado) no mês.
+  const relevantAppointmentsThisMonth = appointmentsThisMonth.filter(
+    apt => apt.status === 'completed' || apt.status === 'cancelled'
+  );
+
+  const completionRateThisMonth = relevantAppointmentsThisMonth.length > 0 
+    ? Math.round((completedAppointmentsThisMonth.length / relevantAppointmentsThisMonth.length) * 100)
     : 0;
+
   // --- COMPONENTES VISUAIS ---
 
-  // Card para as métricas principais
   const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: string | number, icon: React.ElementType, color: string }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex items-center justify-between">
@@ -57,9 +63,8 @@ export default function Dashboard() {
     </div>
   );
 
-  // Card para ações rápidas
   const ActionCard = ({ title, subtitle, icon: Icon, color, path }: { title: string, subtitle: string, icon: React.ElementType, color: string, path: string }) => (
-    <button onClick={() => navigate(path)} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-left hover:border-gray-300 transition-all">
+    <button onClick={() => navigate(path)} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-left hover:border-gray-300 transition-all w-full">
       <div className={`p-3 rounded-lg bg-${color}-100 inline-block mb-4`}>
         <Icon size={24} className={`text-${color}-600`} />
       </div>
@@ -79,9 +84,9 @@ export default function Dashboard() {
       {/* Stats Grid - Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Agendamentos Hoje" value={todayAppointments.length} icon={Calendar} color="blue" />
-        <StatCard title="Concluídos (mês)" value={completedAppointments.length} icon={CheckCircle} color="green" />
-        <StatCard title="Faturamento (mês)" value={`R$ ${totalRevenue.toLocaleString()}`} icon={DollarSign} color="purple" />
-        <StatCard title="Taxa de Conclusão" value={`${completionRate}%`} icon={TrendingUp} color="orange" />
+        <StatCard title="Concluídos (mês)" value={completedAppointmentsThisMonth.length} icon={CheckCircle} color="green" />
+        <StatCard title="Faturamento (mês)" value={`R$ ${totalRevenueThisMonth.toFixed(2).replace('.', ',')}`} icon={DollarSign} color="purple" />
+        <StatCard title="Taxa de Conclusão" value={`${completionRateThisMonth}%`} icon={TrendingUp} color="orange" />
       </div>
 
       {/* Content Grid - Ações e Agendamentos */}
@@ -115,10 +120,9 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-4">
                 {todayAppointments
-                  .sort((a, b) => a.hora_agendamento.localeCompare(b.hora_agendamento))
+                  .sort((a, b) => (a.hora_agendamento || '').localeCompare(b.hora_agendamento || ''))
                   .slice(0, 5) // Mostra no máximo 5 agendamentos aqui
                   .map((appointment) => {
-                    const service = services.find(s => s.id === appointment.servico_id);
                     const client = clients.find(c => c.id === appointment.cliente_id);
                     return (
                       <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -128,10 +132,12 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">{client?.nome || 'Cliente não encontrado'}</p>
-                            <p className="text-sm text-gray-600">{service?.name}</p>
+                            <p className="text-sm text-gray-600">{appointment.hora_agendamento}</p>
                           </div>
                         </div>
-                        <div className="text-lg font-semibold text-gray-900">{appointment.hora_agendamento}</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          R$ {(appointment.valor_total || 0).toFixed(2).replace('.', ',')}
+                        </div>
                       </div>
                     );
                 })}
