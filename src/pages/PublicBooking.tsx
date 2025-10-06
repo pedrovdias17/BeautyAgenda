@@ -86,7 +86,6 @@ export default function PublicBooking() {
     fetchStudioData();
   }, [slug]);
 
-  // --- LÓGICA DE VALIDAÇÃO E FORMATAÇÃO EM TEMPO REAL ---
   const handleClientDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let processedValue = value;
@@ -105,18 +104,15 @@ export default function PublicBooking() {
     setClientData(prev => ({ ...prev, [name]: processedValue }));
   };
   
-  // --- LÓGICA DO FORMULÁRIO ---
   const selectedServiceData = services.find(s => s.id === selectedService);
   const selectedProfessionalData = professionals.find(p => p.id === selectedProfessional);
 
-  // Função para buscar agendamentos existentes e bloqueios quando a data ou profissional mudar
   useEffect(() => {
     const fetchExistingAppointments = async () => {
       if (!selectedDate || !selectedProfessional) return;
       
       setIsLoading(true);
       try {
-        // Buscar agendamentos existentes para o profissional na data selecionada
         const { data: appointments, error: appointmentsError } = await supabase
           .from('agendamentos')
           .select('hora_agendamento, servicos(duration)')
@@ -126,16 +122,13 @@ export default function PublicBooking() {
         
         if (appointmentsError) throw appointmentsError;
         
-        // Formatar os agendamentos existentes
         const existingSlots = appointments?.map(app => ({
           time: app.hora_agendamento,
           duration: app.servicos?.duration || 60
         })) || [];
         
-        console.log("Agendamentos carregados para", selectedDate, ":", existingSlots);
         setExistingAppointments(existingSlots);
         
-        // Buscar bloqueios de horário do profissional
         const { data: blocks, error: blocksError } = await supabase
           .from('bloqueios_horario')
           .select('hora_inicio, hora_fim')
@@ -159,66 +152,63 @@ export default function PublicBooking() {
     fetchExistingAppointments();
   }, [selectedDate, selectedProfessional, supabase]);
 
-  // Usar useMemo para recalcular os horários quando as dependências mudarem
   const timeSlots = useMemo(() => {
-    // Se o serviço, profissional ou data não foram selecionados, não há horários para mostrar.
     if (!selectedServiceData || !selectedProfessional || !selectedDate) {
       return [];
     }
+    
+    const serviceDuration = selectedServiceData.duration || 60;
+    const bufferTime = 15;
+    const totalSlotDuration = serviceDuration + bufferTime;
 
-    console.log("Recalculando horários com base na duração do serviço...");
-
-    const availableSlots = [];
-    const serviceDuration = selectedServiceData.duration || 60; // Duração do serviço em minutos
-    const bufferTime = 15; // Buffer de 15 minutos
-
-    // Define o horário de funcionamento em minutos a partir da meia-noite
     const workDayStart = 8 * 60; // 08:00
     const workDayEnd = 18 * 60;   // 18:00
 
-    // Converte agendamentos e bloqueios existentes para um formato mais fácil de usar (minutos)
-    // Cada slot ocupado inclui o tempo do serviço/bloqueio + o buffer
     const occupiedSlots = [
       ...existingAppointments.map(app => {
         const [hours, minutes] = app.time.split(':').map(Number);
         const start = hours * 60 + minutes;
-        const end = start + (app.duration || 60) + bufferTime; // Agendamento + buffer
+        const end = start + (app.duration || 60) + bufferTime;
         return { start, end };
       }),
       ...timeBlocks.map(block => {
         const [startHours, startMinutes] = block.start.split(':').map(Number);
         const [endHours, endMinutes] = block.end.split(':').map(Number);
-        const start = startHours * 60 + startMinutes;
-        const end = endHours * 60 + endMinutes;
-        return { start, end };
+        return { start: startHours * 60 + startMinutes, end: endHours * 60 + endMinutes };
       })
-    ];
+    ].sort((a, b) => a.start - b.start); // Ordenar os bloqueios é crucial para a lógica de pulo
 
-    // Itera pelo dia em intervalos de 15 minutos para verificar possíveis horários de início
-    for (let potentialStartTime = workDayStart; potentialStartTime <= workDayEnd - serviceDuration; potentialStartTime += 15) {
+    const availableSlots = [];
+    let currentTime = workDayStart; // Este é o nosso "ponteiro"
+
+    while (currentTime + serviceDuration <= workDayEnd) {
+      const slotStart = currentTime;
+      const slotEnd = currentTime + serviceDuration;
       
-      const potentialEndTime = potentialStartTime + serviceDuration;
-      let isSlotAvailable = true;
+      let overlappingBlock = null;
 
-      // Verifica se o slot potencial (inicio + duração) conflita com algum slot já ocupado
       for (const occupied of occupiedSlots) {
-        // Lógica de verificação de sobreposição:
-        // (StartA < EndB) e (EndA > StartB)
-        if (potentialStartTime < occupied.end && potentialEndTime > occupied.start) {
-          isSlotAvailable = false;
-          break; // Conflito encontrado, pode parar de verificar
+        if (slotStart < occupied.end && slotEnd > occupied.start) {
+          overlappingBlock = occupied;
+          break;
         }
       }
 
-      if (isSlotAvailable) {
-        const hours = Math.floor(potentialStartTime / 60).toString().padStart(2, '0');
-        const minutes = (potentialStartTime % 60).toString().padStart(2, '0');
+      if (overlappingBlock) {
+        // Se há sobreposição, pule o ponteiro para o final do bloco ocupado
+        currentTime = overlappingBlock.end;
+      } else {
+        // Se não há sobreposição, este é um horário válido!
+        const hours = Math.floor(currentTime / 60).toString().padStart(2, '0');
+        const minutes = (currentTime % 60).toString().padStart(2, '0');
         availableSlots.push(`${hours}:${minutes}`);
+
+        // Avance o ponteiro pelo tempo total do serviço + buffer
+        currentTime += totalSlotDuration;
       }
     }
 
     return availableSlots;
-
   }, [selectedDate, selectedProfessional, existingAppointments, timeBlocks, selectedServiceData]);
 
   const availableProfessionals = (() => {
@@ -238,7 +228,6 @@ export default function PublicBooking() {
   const handleBack = () => setStep(step - 1);
 
   const handleSubmit = async () => {
-    // Validação final antes de enviar
     if (!clientData.name.trim() || !clientData.phone.trim()) {
       alert('Por favor, preencha seu nome e telefone.'); return;
     }
