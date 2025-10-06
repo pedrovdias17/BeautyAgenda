@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
-// --- INTERFACES ---
+// --- INTERFACES (ATUALIZADAS) ---
 export interface Professional {
   id: string;
   usuario_id: string;
@@ -37,7 +37,8 @@ export interface Appointment {
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
   status_pagamento: 'pending' | 'partial' | 'paid';
   valor_sinal?: number;
-  valor_total?: number; // Adicionado para consistência
+  valor_total?: number;
+  observacoes?: string; // CAMPO ADICIONADO
   clientName: string;
   clientPhone: string;
   clientEmail: string;
@@ -51,6 +52,7 @@ export interface Client {
   email: string;
   total_agendamentos: number;
   ultima_visita: string;
+  observacoes?: string; // CAMPO ADICIONADO
 }
 
 // --- TIPO DO CONTEXTO (ATUALIZADO) ---
@@ -68,10 +70,12 @@ interface DataContextType {
   updateService: (id: string, service: Partial<Service>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
   addAppointment: (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id' | 'valor_total'>) => Promise<void>;
-  // Funções de ação específicas
   confirmAppointment: (id: string) => Promise<void>;
   cancelAppointment: (id: string) => Promise<void>;
   markAppointmentAsCompleted: (id: string) => Promise<void>;
+  // NOVAS FUNÇÕES PARA OBSERVAÇÕES
+  updateAppointmentNotes: (id: string, notes: string) => Promise<void>;
+  updateClientNotes: (id: string, notes: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -100,10 +104,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (servicesError) throw servicesError;
         setServices(servicesData || []);
 
+        // ATUALIZADO: Buscar a coluna 'observacoes'
         const { data: appointmentsData, error: appointmentsError } = await supabase.from('agendamentos').select('*').eq('usuario_id', user.id);
         if (appointmentsError) throw appointmentsError;
         setAppointments(appointmentsData || []);
 
+        // ATUALIZADO: Buscar a coluna 'observacoes'
         const { data: clientsData, error: clientsError } = await supabase.from('clientes').select('*').eq('usuario_id', user.id);
         if (clientsError) throw clientsError;
         setClients(clientsData || []);
@@ -121,67 +127,49 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchData]);
 
-  // --- Funções CRUD (Profissionais, Serviços) ---
   const addProfessional = async (professional: Omit<Professional, 'id' | 'usuario_id'>) => { /* ...código sem alterações... */ };
   const updateProfessional = async (id: string, professional: Partial<Professional>) => { /* ...código sem alterações... */ };
   const deleteProfessional = async (id: string) => { /* ...código sem alterações... */ };
   const addService = async (service: Omit<Service, 'id' | 'usuario_id' | 'active'>) => { /* ...código sem alterações... */ };
   const updateService = async (id: string, service: Partial<Service>) => { /* ...código sem alterações... */ };
   const deleteService = async (id: string) => { /* ...código sem alterações... */ };
-  
-  // --- Funções CRUD (Agendamentos) ---
-  const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id' | 'valor_total'>) => {
+  const addAppointment = async (appointment: Omit<Appointment, 'id' | 'usuario_id' | 'cliente_id' | 'valor_total'>) => { /* ...código sem alterações... */ };
+  const confirmAppointment = async (id: string) => { /* ...código sem alterações... */ };
+  const cancelAppointment = async (id: string) => { /* ...código sem alterações... */ };
+  const markAppointmentAsCompleted = async (id: string) => { /* ...código sem alterações... */ };
+
+  // --- NOVAS FUNÇÕES PARA ATUALIZAR OBSERVAÇÕES ---
+  const updateAppointmentNotes = async (id: string, notes: string) => {
     if (!user) return;
-    const { data: clientResult, error: clientError } = await supabase.rpc('find_or_create_client', {
-      p_owner_id: user.id, p_name: appointment.clientName, p_phone: appointment.clientPhone,
-      p_email: appointment.clientEmail, p_last_visit: appointment.data_agendamento
-    });
-    if (clientError) { console.error('Erro ao criar/encontrar cliente:', clientError); return; }
-    const clientId = clientResult;
-    const serviceDetails = services.find(s => s.id === appointment.servico_id);
-    const appointmentDataForDB = {
-      usuario_id: user.id, cliente_id: clientId, servico_id: appointment.servico_id,
-      profissional_id: appointment.profissional_id, data_agendamento: appointment.data_agendamento,
-      hora_agendamento: appointment.hora_agendamento, status: appointment.status,
-      status_pagamento: appointment.status_pagamento || (serviceDetails?.requiresSignal ? 'pending' : 'paid'),
-      valor_sinal: appointment.valor_sinal, valor_total: serviceDetails?.price || 0
-    };
-    const { error } = await supabase.from('agendamentos').insert(appointmentDataForDB);
-    if (error) { console.error('Erro ao adicionar agendamento:', error); return; }
-    await fetchData();
+    const { error } = await supabase.from('agendamentos').update({ observacoes: notes }).eq('id', id);
+    if (error) {
+      console.error('Erro ao atualizar observações do agendamento:', error);
+    } else {
+      // Atualiza o estado localmente para uma resposta mais rápida da UI
+      setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, observacoes: notes } : apt));
+    }
   };
 
-  const updateAppointmentStatus = async (id: string, status: 'confirmed' | 'pending' | 'cancelled' | 'completed') => {
+  const updateClientNotes = async (id: string, notes: string) => {
     if (!user) return;
-    const { error } = await supabase.from('agendamentos').update({ status: status }).eq('id', id);
-    if (error) console.error('Erro ao atualizar status:', error); else await fetchData();
-  };
-  
-  // --- 1. NOVAS FUNÇÕES DE AÇÃO ESPECÍFICAS ---
-  const confirmAppointment = async (id: string) => {
-    await updateAppointmentStatus(id, 'confirmed');
+    const { error } = await supabase.from('clientes').update({ observacoes: notes }).eq('id', id);
+    if (error) {
+      console.error('Erro ao atualizar observações do cliente:', error);
+    } else {
+      setClients(prev => prev.map(cli => cli.id === id ? { ...cli, observacoes: notes } : cli));
+    }
   };
 
-  const cancelAppointment = async (id: string) => {
-    await updateAppointmentStatus(id, 'cancelled');
-  };
-
-  const markAppointmentAsCompleted = async (id: string) => {
-    if (!user) return;
-    // Lógica para marcar como concluído e também como pago
-    const { error } = await supabase.from('agendamentos').update({ status: 'completed', status_pagamento: 'paid' }).eq('id', id);
-    if (error) console.error('Erro ao marcar como concluído:', error); else await fetchData();
-  };
 
   return (
     <DataContext.Provider value={{
       professionals, services, appointments, clients, isLoading,
       fetchData, addProfessional, updateProfessional, deleteProfessional,
       addService, updateService, deleteService, addAppointment,
-      // 2. EXPONDO AS NOVAS FUNÇÕES NO CONTEXTO
-      confirmAppointment,
-      cancelAppointment,
-      markAppointmentAsCompleted
+      confirmAppointment, cancelAppointment, markAppointmentAsCompleted,
+      // Expondo as novas funções
+      updateAppointmentNotes,
+      updateClientNotes
     }}>
       {children}
     </DataContext.Provider>

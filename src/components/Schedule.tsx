@@ -8,7 +8,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   X,
-  User
+  User,
+  Save,
+  Info
 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { Appointment } from '../contexts/DataContext';
@@ -44,7 +46,8 @@ export default function Schedule() {
     addAppointment,
     markAppointmentAsCompleted,
     cancelAppointment,
-    confirmAppointment
+    confirmAppointment,
+    updateAppointmentNotes
   } = useData();
 
   // --- ESTADOS DA PÁGINA ---
@@ -53,20 +56,20 @@ export default function Schedule() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterProfessional, setFilterProfessional] = useState('all');
   
-  // --- ESTADOS PARA O MODAL (AGORA MAIS INTELIGENTE) ---
+  // --- ESTADOS PARA O MODAL ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'new' | 'view'>('new');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [appointmentNotes, setAppointmentNotes] = useState('');
+
   const [formData, setFormData] = useState({
-    clientName: '',
-    clientPhone: '',
-    clientEmail: '',
-    servico_id: '',
-    profissional_id: '',
+    clientName: '', clientPhone: '', clientEmail: '',
+    servico_id: '', profissional_id: '',
     data_agendamento: formatDateToISO(new Date()),
     hora_agendamento: '09:00',
     status_pagamento: 'pending' as 'pending' | 'partial' | 'paid'
   });
+
 
   // --- LÓGICA DO MODAL ---
   const openNewAppointmentModal = () => {
@@ -85,7 +88,14 @@ export default function Schedule() {
   const openViewAppointmentModal = (appointment: Appointment) => {
     setModalMode('view');
     setSelectedAppointment(appointment);
+    setAppointmentNotes(appointment.observacoes || '');
     setIsModalOpen(true);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedAppointment) return;
+    await updateAppointmentNotes(selectedAppointment.id, appointmentNotes);
+    alert('Observações salvas com sucesso!');
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -110,7 +120,8 @@ export default function Schedule() {
     
     await addAppointment({
       ...formData,
-      status: 'confirmed', // Agendamentos manuais já entram como confirmados
+      status: 'confirmed',
+      observacoes: '', // Incluir campo para evitar erros de tipo
       valor_sinal: 0,
     });
 
@@ -180,7 +191,6 @@ export default function Schedule() {
 
   return (
     <div className="p-6">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Agenda</h1>
@@ -192,7 +202,6 @@ export default function Schedule() {
         </button>
       </div>
 
-      {/* Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
           <div className="flex items-center space-x-2">
@@ -228,7 +237,6 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Schedule View Semanal */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         {sortedDays.length === 0 ? (
           <div className="text-center py-20">
@@ -271,88 +279,96 @@ export default function Schedule() {
         )}
       </div>
 
-      {/* Modal Inteligente (Novo Agendamento e Visualização) */}
+ {/* Modal Inteligente (Atualizado com Observações do Cliente) */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-lg w-full p-8 shadow-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-lg w-full p-8 shadow-2xl my-8">
             
             {modalMode === 'view' && selectedAppointment && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Detalhes do Agendamento</h2>
-                  <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20} /></button>
-                </div>
-                <div className="space-y-3 text-sm text-gray-700 mb-6 pb-6 border-b">
-                  <p><strong>Cliente:</strong> {clients.find(c => c.id === selectedAppointment.cliente_id)?.nome}</p>
-                  <p><strong>Serviço:</strong> {services.find(s => s.id === selectedAppointment.servico_id)?.name}</p>
-                  <p><strong>Profissional:</strong> {professionals.find(p => p.id === selectedAppointment.profissional_id)?.name}</p>
-                  <p><strong>Data:</strong> {new Date(selectedAppointment.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</p>
-                  <p><strong>Hora:</strong> {selectedAppointment.hora_agendamento}</p>
-                  <p><strong>Status:</strong> <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(selectedAppointment.status)}`}>{getStatusText(selectedAppointment.status)}</span></p>
-                </div>
-                <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
-                  {selectedAppointment.status === 'pending' && (
-                    <button onClick={() => { confirmAppointment(selectedAppointment.id); setIsModalOpen(false); }} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Confirmar Agendamento</button>
-                  )}
-                  {selectedAppointment.status === 'confirmed' && (
-                    <button onClick={() => { markAppointmentAsCompleted(selectedAppointment.id); setIsModalOpen(false); }} className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Marcar como Concluído</button>
-                  )}
-                  {selectedAppointment.status !== 'cancelled' && selectedAppointment.status !== 'completed' && (
-                    <button onClick={() => { if(window.confirm('Tem certeza que deseja cancelar este agendamento?')) { cancelAppointment(selectedAppointment.id); setIsModalOpen(false); } }} className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Cancelar Agendamento</button>
-                  )}
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50">Fechar</button>
-                </div>
-              </div>
+              (() => {
+                const client = clients.find(c => c.id === selectedAppointment.cliente_id);
+                return (
+                  <div>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900">Detalhes do Agendamento</h2>
+                      <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20} /></button>
+                    </div>
+                    <div className="space-y-3 text-sm text-gray-700 mb-6 pb-6 border-b">
+                      <p><strong>Cliente:</strong> {client?.nome}</p>
+                      <p><strong>Serviço:</strong> {services.find(s => s.id === selectedAppointment.servico_id)?.name}</p>
+                      <p><strong>Profissional:</strong> {professionals.find(p => p.id === selectedAppointment.profissional_id)?.name}</p>
+                      <p><strong>Data:</strong> {new Date(selectedAppointment.data_agendamento + 'T00:00:00').toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</p>
+                      <p><strong>Hora:</strong> {selectedAppointment.hora_agendamento}</p>
+                      <p><strong>Status:</strong> <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(selectedAppointment.status)}`}>{getStatusText(selectedAppointment.status)}</span></p>
+                    </div>
+
+                    {/* --- 1. EXIBIÇÃO DAS OBSERVAÇÕES DO CLIENTE (READ-ONLY) --- */}
+                    {client?.observacoes && (
+                      <div className="mb-6 pb-6 border-b">
+                        <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
+                          <Info size={16} className="text-blue-600"/>
+                          <span>Observações Permanentes do Cliente</span>
+                        </label>
+                        <div className="w-full p-3 border bg-gray-50 border-gray-200 rounded-lg text-sm text-gray-600 whitespace-pre-wrap">
+                          {client.observacoes}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mb-6 pb-6 border-b">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Observações deste Agendamento</label>
+                      <textarea
+                        value={appointmentNotes}
+                        onChange={(e) => setAppointmentNotes(e.target.value)}
+                        rows={4}
+                        className="w-full p-3 border border-gray-300 rounded-lg text-sm"
+                        placeholder="Adicione detalhes sobre o atendimento, preferências do cliente, etc..."
+                      />
+                      <div className="flex justify-end mt-3">
+                        <button onClick={handleSaveNotes} className="flex items-center space-x-2 px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800">
+                          <Save size={16}/>
+                          <span>Salvar Observações</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+                      {selectedAppointment.status === 'pending' && (
+                        <button onClick={() => { confirmAppointment(selectedAppointment.id); setIsModalOpen(false); }} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Confirmar Agendamento</button>
+                      )}
+                      {selectedAppointment.status === 'confirmed' && (
+                        <button onClick={() => { markAppointmentAsCompleted(selectedAppointment.id); setIsModalOpen(false); }} className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Marcar como Concluído</button>
+                      )}
+                      {selectedAppointment.status !== 'cancelled' && selectedAppointment.status !== 'completed' && (
+                        <button onClick={() => { if(window.confirm('Tem certeza que deseja cancelar este agendamento?')) { cancelAppointment(selectedAppointment.id); setIsModalOpen(false); } }} className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">Cancelar Agendamento</button>
+                      )}
+                      <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50">Fechar</button>
+                    </div>
+                  </div>
+                )
+              })()
             )}
             
             {modalMode === 'new' && (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Novo Agendamento Manual</h2>
-                  <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20} /></button>
-                </div>
+                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-semibold text-gray-900">Novo Agendamento Manual</h2><button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full text-gray-400 hover:bg-gray-100"><X size={20} /></button></div>
                 <h3 className="text-md font-medium text-gray-800 border-b pb-2">Dados do Cliente</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Cliente *</label>
-                  <input type="text" name="clientName" required value={formData.clientName} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/>
-                </div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Nome do Cliente *</label><input type="text" name="clientName" required value={formData.clientName} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Telefone *</label><input type="tel" name="clientPhone" required value={formData.clientPhone} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" name="clientEmail" value={formData.clientEmail} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                 </div>
                 <h3 className="text-md font-medium text-gray-800 border-b pb-2 pt-4">Dados do Serviço</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Serviço *</label>
-                    <select name="servico_id" required value={formData.servico_id} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                      <option value="">Selecione um serviço</option>
-                      {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Profissional *</label>
-                    <select name="profissional_id" required value={formData.profissional_id} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50" disabled>
-                      <option value="">Selecione um serviço</option>
-                      {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Serviço *</label><select name="servico_id" required value={formData.servico_id} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="">Selecione um serviço</option>{services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Profissional *</label><select name="profissional_id" required value={formData.profissional_id} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50" disabled><option value="">Selecione um serviço</option>{professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Data *</label><input type="date" name="data_agendamento" required value={formData.data_agendamento} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-2">Hora *</label><input type="time" name="hora_agendamento" required value={formData.hora_agendamento} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status do Pagamento *</label>
-                  <select name="status_pagamento" required value={formData.status_pagamento} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                    <option value="pending">Pendente</option>
-                    <option value="paid">Pago</option>
-                    <option value="partial">Sinal Pago</option>
-                  </select>
-                </div>
-                <div className="flex space-x-4 pt-6">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50">Cancelar</button>
-                  <button type="submit" className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Confirmar Agendamento</button>
-                </div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Status do Pagamento *</label><select name="status_pagamento" required value={formData.status_pagamento} onChange={handleFormChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg"><option value="pending">Pendente</option><option value="paid">Pago</option><option value="partial">Sinal Pago</option></select></div>
+                <div className="flex space-x-4 pt-6"><button type="button" onClick={() => setIsModalOpen(false)} className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50">Cancelar</button><button type="submit" className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Confirmar Agendamento</button></div>
               </form>
             )}
           </div>
