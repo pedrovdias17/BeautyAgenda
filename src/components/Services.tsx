@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Briefcase, Clock, DollarSign, User, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Briefcase, X } from 'lucide-react';
 import { useData, Service } from '../contexts/DataContext';
 
 export default function Services() {
@@ -17,12 +17,26 @@ export default function Services() {
     signalAmount: 0
   });
 
+  // --- FUNÇÃO handleSubmit CORRIGIDA ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Criamos um objeto explícito para garantir que estamos enviando os dados corretos
+    const dataForSupabase = {
+      name: formData.name,
+      professionalId: formData.professionalId,
+      duration: formData.duration,
+      price: formData.price,
+      description: formData.description,
+      requiresSignal: formData.requiresSignal,
+      signalAmount: formData.signalAmount,
+    };
+
     if (editingService) {
-      updateService(editingService.id, formData);
+      updateService(editingService.id, dataForSupabase);
     } else {
-      addService(formData);
+      // @ts-ignore
+      addService(dataForSupabase);
     }
     resetForm();
   };
@@ -38,7 +52,6 @@ export default function Services() {
 
   const handleEdit = (service: Service) => {
     setEditingService(service);
-    // Garante que todos os campos do formulário existam no objeto do serviço
     setFormData({
       name: service.name || '',
       professionalId: service.professionalId || '',
@@ -77,6 +90,7 @@ export default function Services() {
         <button
           onClick={() => {
             resetForm();
+            setEditingService(null);
             setIsModalOpen(true);
           }}
           className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
@@ -110,7 +124,7 @@ export default function Services() {
                     <td className="px-6 py-4">{professional?.name || 'N/A'}</td>
                     <td className="px-6 py-4">{formatDuration(service.duration)}</td>
                     <td className="px-6 py-4 font-medium text-green-600">
-                      R$ {service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.price)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end space-x-2">
@@ -163,8 +177,8 @@ export default function Services() {
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Duração (min) *</label><input type="number" required min="15" step="15" value={formData.duration} onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value) }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Preço (R$) *</label><input type="number" required min="0" step="0.01" value={formData.price} onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Duração (min) *</label><input type="number" required min="15" step="15" value={formData.duration} onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Preço (R$) *</label><input type="number" required min="0" step="0.01" value={formData.price} onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))} className="w-full px-4 py-2 border border-gray-300 rounded-lg"/></div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
