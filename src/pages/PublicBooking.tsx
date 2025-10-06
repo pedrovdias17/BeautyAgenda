@@ -384,7 +384,13 @@ export default function PublicBooking() {
               <div className="space-y-4">
                 {services.map((service) => (
                     <button key={service.id} onClick={() => handleServiceSelect(service.id)} className={`w-full p-4 border rounded-lg text-left transition-colors ${selectedService === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <h3 className="font-medium text-gray-900">{service.name}</h3>
+                      {/* --- LINHAS ALTERADAS --- */}
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-medium text-gray-900">{service.name}</h3>
+                        <span className="font-semibold text-green-600 text-lg">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.price)}
+                        </span>
+                      </div>
                       <p className="text-sm text-gray-600 mt-1">{service.description}</p>
                     </button>
                 ))}
