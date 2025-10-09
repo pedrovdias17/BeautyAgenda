@@ -1,5 +1,3 @@
-// contexts/AuthContext.tsx (VERSÃO COMPLETA E CORRIGIDA)
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { supabase, Usuario } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
@@ -103,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password: password,
           options: {
             // A mágica acontece aqui: passamos os dados extras para o Supabase
+            // O gatilho no banco de dados vai usar esses dados para criar o perfil.
             data: {
               nome: nome,
               nome_studio: nomeStudio,
@@ -121,8 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!data.user) {
             return { success: false, error: 'Não foi possível criar a conta.' };
         }
-
-        // A lógica de UPDATE foi removida daqui, pois o gatilho no banco fará o trabalho.
         
         alert('Conta criada com sucesso! Enviamos um link de confirmação para o seu email.');
         return { success: true };
@@ -134,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   
   const resetPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string; }> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + '/update-password',
     });
     if (error) {
