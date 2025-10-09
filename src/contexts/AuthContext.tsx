@@ -95,44 +95,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // --- FUNÇÃO SIGNUP CORRIGIDA ---
   const signup = useCallback(async (email: string, password: string, nome: string, nomeStudio: string, slug: string): Promise<{ success: boolean; error?: string; }> => {
     try {
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            // A mágica acontece aqui: passamos os dados extras para o Supabase
+            data: {
+              nome: nome,
+              nome_studio: nomeStudio,
+              slug: slug
+            }
+          }
+        });
 
-        if (authError) {
-          if (authError.message.includes('User already registered')) {
+        if (error) {
+          if (error.message.includes('User already registered')) {
             return { success: false, error: 'Este email já está cadastrado. Tente fazer login.' };
           }
-          return { success: false, error: authError.message };
+          return { success: false, error: error.message };
         }
 
-        if (!authData.user) {
+        if (!data.user) {
             return { success: false, error: 'Não foi possível criar a conta.' };
         }
 
-        const { error: profileError } = await supabase
-            .from('usuarios')
-            .update({
-                nome: nome,
-                nome_studio: nomeStudio,
-                slug: slug,
-            })
-            .eq('id', authData.user.id);
-
-        if (profileError) {
-          console.error('Conta criada, mas falha ao atualizar perfil inicial:', profileError);
-        }
-
+        // A lógica de UPDATE foi removida daqui, pois o gatilho no banco fará o trabalho.
+        
         alert('Conta criada com sucesso! Enviamos um link de confirmação para o seu email.');
         return { success: true };
 
     } catch (error) {
-        return { success: false, error: 'Erro inesperado ao criar conta' };
+        console.error('Erro inesperado ao criar conta:', error);
+        return { success: false, error: 'Ocorreu um erro inesperado.' };
     }
   }, []);
   
   const resetPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string; }> => {
-     // Lógica de reset de senha...
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/update-password',
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
     return { success: true };
   }, []);
 
