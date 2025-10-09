@@ -12,14 +12,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
-  const { appointments, clients } = useData();
+  const { appointments, clients, services } = useData();
   const navigate = useNavigate();
 
-  // --- 1. LÓGICA DE CÁLCULO DAS MÉTRICAS (CORRIGIDA PARA O MÊS ATUAL) ---
+  // --- LÓGICA DE CÁLCULO DAS MÉTRICAS (VERSÃO FINAL E CORRETA) ---
   const now = new Date();
   const todayISO = now.toISOString().split('T')[0];
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0 = Janeiro, 11 = Dezembro
+  const currentMonth = now.getMonth();
 
   // Filtra agendamentos apenas para o mês e ano correntes
   const appointmentsThisMonth = appointments.filter(apt => {
@@ -27,24 +27,30 @@ export default function Dashboard() {
     return aptDate.getFullYear() === currentYear && aptDate.getMonth() === currentMonth;
   });
 
-  // Agendamentos de hoje (continua como estava, é diário)
+  // Agendamentos de hoje
   const todayAppointments = appointments.filter(apt => apt.data_agendamento === todayISO);
 
-  // Métrica 'Concluídos (mês)' - CORRIGIDA
+  // Métrica 'Concluídos (mês)' - Conta apenas os que foram finalizados
   const completedAppointmentsThisMonth = appointmentsThisMonth.filter(apt => apt.status === 'completed');
 
-  // Métrica 'Faturamento (mês)' - CORRIGIDA
-  // Soma o valor_total apenas de agendamentos concluídos no mês atual.
-  const totalRevenueThisMonth = completedAppointmentsThisMonth.reduce((sum, apt) => {
-    return sum + (apt.valor_total || 0);
+  // Métrica 'Faturamento (mês)' - LÓGICA ATUALIZADA
+  const totalRevenueThisMonth = appointmentsThisMonth.reduce((sum, apt) => {
+    // Se o agendamento foi concluído, o valor total dele entra no faturamento.
+    if (apt.status === 'completed') {
+      return sum + (apt.valor_total || 0);
+    }
+    // Se ele foi apenas confirmado via sinal, apenas o valor do sinal entra no faturamento.
+    if (apt.status === 'confirmed' && apt.status_pagamento === 'partial') {
+      return sum + (apt.valor_sinal || 0);
+    }
+    // Para outros status (pending, cancelled), não adiciona nada.
+    return sum;
   }, 0);
 
-  // Métrica 'Taxa de Conclusão' - CORRIGIDA E MAIS PRECISA
-  // Calcula a taxa baseada nos agendamentos que tiveram um desfecho (concluído ou cancelado) no mês.
+  // Métrica 'Taxa de Conclusão' - Continua a mesma lógica precisa
   const relevantAppointmentsThisMonth = appointmentsThisMonth.filter(
     apt => apt.status === 'completed' || apt.status === 'cancelled'
   );
-
   const completionRateThisMonth = relevantAppointmentsThisMonth.length > 0 
     ? Math.round((completedAppointmentsThisMonth.length / relevantAppointmentsThisMonth.length) * 100)
     : 0;
