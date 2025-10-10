@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { loadStripe } from '@stripe/stripe-js';
+// A importação do 'loadStripe' foi removida, pois não é mais necessária para este fluxo.
 import { 
   Crown, 
   Check, 
@@ -14,12 +14,8 @@ import {
   BarChart3
 } from 'lucide-react';
 
-
-const stripePromise = loadStripe('pk_live_51RxWVc0jIp6LpHNPkv3p5ODH8IxHhHzYaFF9Ony6LwdJsf1JIHSDnKULNAILkY86OospBxYY7IaUeXF2Xm5vvtuR00CJVK1VU9');
-
-// 2. Cole o ID do Preço do plano de R$ 47 que você criou no Stripe.
+// O ID do Preço da sua oferta de R$ 47.
 const PRICE_ID = 'price_1SGZI10jIp6LpHNPujNaBzCM'; // Ex: 'price_1P9Xq...'
-
 
 export default function Upgrade() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -63,7 +59,7 @@ export default function Upgrade() {
     }
   ];
 
-  // --- FUNÇÃO handleUpgrade ATUALIZADA ---
+  // --- FUNÇÃO handleUpgrade ATUALIZADA E SIMPLIFICADA ---
   const handleUpgrade = async () => {
     setIsProcessing(true);
     
@@ -81,21 +77,14 @@ export default function Upgrade() {
       });
 
       if (functionError) throw functionError;
-      if (!data.sessionId) throw new Error("Não foi possível obter o ID da sessão de checkout.");
-
-      // Usa a biblioteca do Stripe para redirecionar de forma segura
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error("Stripe.js não foi carregado.");
-
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: data.sessionId,
-      });
-
-      if (stripeError) {
-        // Este erro geralmente só acontece se houver um problema de rede ou configuração do lado do cliente.
-        // O cliente não será redirecionado se houver um erro aqui.
-        throw new Error(`Erro ao redirecionar para o checkout: ${stripeError.message}`);
+      
+      // A Edge Function agora nos retorna a URL completa do checkout
+      if (!data.url) {
+        throw new Error("Não foi possível obter a URL de checkout do Stripe.");
       }
+
+      // Redirecionamento simples para a URL de pagamento
+      window.location.href = data.url;
 
     } catch (error: any) {
       console.error('Erro no processo de upgrade:', error);
@@ -106,7 +95,7 @@ export default function Upgrade() {
 
   return (
     <div className="p-6">
-      {/* Header */}
+      {/* O resto do seu JSX continua aqui, sem alterações */}
       <div className="text-center mb-12">
         <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-yellow-600 text-white rounded-full flex items-center justify-center mx-auto mb-6">
           <Crown size={32} />
@@ -121,12 +110,10 @@ export default function Upgrade() {
 
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Benefits */}
           <div className="lg:col-span-2">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
               Tudo que você continuará tendo acesso:
             </h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {benefits.map((benefit, index) => {
                 const Icon = benefit.icon;
@@ -145,7 +132,6 @@ export default function Upgrade() {
                 );
               })}
             </div>
-
             <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
               <div className="flex items-center space-x-4 mb-4">
                 <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold"> M </div>
@@ -160,7 +146,6 @@ export default function Upgrade() {
             </div>
           </div>
 
-          {/* Pricing Card */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 sticky top-6">
               <div className="text-center mb-8">
@@ -168,7 +153,6 @@ export default function Upgrade() {
                   <Check size={16} className="mr-2" />
                   Teste Grátis Ativo
                 </div>
-                
                 <div className="mb-4">
                   <div className="flex items-baseline justify-center">
                     <span className="text-2xl font-medium text-gray-500 line-through mr-2">R$ 67</span>
@@ -177,9 +161,7 @@ export default function Upgrade() {
                   </div>
                   <p className="text-sm font-semibold text-yellow-600 mt-2">Oferta de Lançamento!</p>
                 </div>
-                
                 <p className="text-gray-600 mb-6"> Sem taxa de setup • Cancele quando quiser </p>
-
                 <div className="space-y-3 text-left mb-8">
                   <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Agendamentos ilimitados</span></div>
                   <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Clientes ilimitados</span></div>
@@ -187,7 +169,6 @@ export default function Upgrade() {
                   <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Pagamento de sinais</span></div>
                   <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Suporte prioritário</span></div>
                 </div>
-
                 <button
                   onClick={handleUpgrade}
                   disabled={isProcessing}
@@ -195,10 +176,8 @@ export default function Upgrade() {
                 >
                   {isProcessing ? 'Processando...' : 'Assinar Agora'}
                 </button>
-
                 <p className="text-xs text-gray-500 mt-4"> Pagamento seguro • SSL 256-bit </p>
               </div>
-
               <div className="border-t border-gray-100 pt-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Garantia de 30 dias</h4>
                 <p className="text-sm text-gray-600">
@@ -209,7 +188,6 @@ export default function Upgrade() {
           </div>
         </div>
 
-        {/* FAQ */}
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
             Perguntas Frequentes
