@@ -1,7 +1,12 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
 import Stripe from 'https://esm.sh/stripe@13.9.0?target=deno'
+
+// DEFININDO OS HEADERS DE CORS DIRETAMENTE AQUI
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
   apiVersion: '2023-08-16',
@@ -9,6 +14,7 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
 })
 
 serve(async (req) => {
+  // RESPOSTA PARA O PREFLIGHT REQUEST DO NAVEGADOR
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -16,12 +22,17 @@ serve(async (req) => {
   try {
     const { priceId, userId } = await req.json()
 
+    // Garante que o SITE_URL está definido
+    const siteUrl = Deno.env.get('SITE_URL');
+    if (!siteUrl) {
+      throw new Error('SITE_URL não está definida nas variáveis de ambiente do Supabase.');
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Busca o email do cliente na tabela de autenticação
     const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
     if (userError) throw userError
 
@@ -32,9 +43,9 @@ serve(async (req) => {
         quantity: 1,
       }],
       mode: 'subscription',
-      customer_email: user.email, // Pré-preenche o email do cliente
-      success_url: `${Deno.env.get('SITE_URL')}/payment/success`,
-      cancel_url: `${Deno.env.get('SITE_URL')}/upgrade`,
+      customer_email: user.email,
+      success_url: `${siteUrl}/payment/success`,
+      cancel_url: `${siteUrl}/upgrade`,
     })
 
     return new Response(JSON.stringify({ sessionId: session.id, url: session.url }), {
