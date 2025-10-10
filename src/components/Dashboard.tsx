@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext'; // 1. Importar o useAuth
 import { 
   Calendar, 
   DollarSign, 
@@ -7,47 +8,42 @@ import {
   TrendingUp,
   Clock,
   CheckCircle,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  AlertTriangle // 2. Importar o ícone de alerta
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { appointments, clients, services } = useData();
+  const { user, resendConfirmationEmail } = useAuth(); // 3. Pegar o 'user' e a nova função do AuthContext
   const navigate = useNavigate();
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
-  // --- LÓGICA DE CÁLCULO DAS MÉTRICAS (VERSÃO FINAL E CORRETA) ---
+  // --- LÓGICA DE CÁLCULO DAS MÉTRICAS ---
   const now = new Date();
   const todayISO = now.toISOString().split('T')[0];
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
 
-  // Filtra agendamentos apenas para o mês e ano correntes
   const appointmentsThisMonth = appointments.filter(apt => {
     const aptDate = new Date(apt.data_agendamento + 'T00:00:00');
     return aptDate.getFullYear() === currentYear && aptDate.getMonth() === currentMonth;
   });
 
-  // Agendamentos de hoje
   const todayAppointments = appointments.filter(apt => apt.data_agendamento === todayISO);
-
-  // Métrica 'Concluídos (mês)' - Conta apenas os que foram finalizados
   const completedAppointmentsThisMonth = appointmentsThisMonth.filter(apt => apt.status === 'completed');
 
-  // Métrica 'Faturamento (mês)' - LÓGICA ATUALIZADA
   const totalRevenueThisMonth = appointmentsThisMonth.reduce((sum, apt) => {
-    // Se o agendamento foi concluído, o valor total dele entra no faturamento.
     if (apt.status === 'completed') {
       return sum + (apt.valor_total || 0);
     }
-    // Se ele foi apenas confirmado via sinal, apenas o valor do sinal entra no faturamento.
     if (apt.status === 'confirmed' && apt.status_pagamento === 'partial') {
       return sum + (apt.valor_sinal || 0);
     }
-    // Para outros status (pending, cancelled), não adiciona nada.
     return sum;
   }, 0);
 
-  // Métrica 'Taxa de Conclusão' - Continua a mesma lógica precisa
   const relevantAppointmentsThisMonth = appointmentsThisMonth.filter(
     apt => apt.status === 'completed' || apt.status === 'cancelled'
   );
@@ -55,8 +51,21 @@ export default function Dashboard() {
     ? Math.round((completedAppointmentsThisMonth.length / relevantAppointmentsThisMonth.length) * 100)
     : 0;
 
+  // 4. NOVA FUNÇÃO PARA REENVIAR O EMAIL
+  const handleResendEmail = async () => {
+    if (!user?.email) return;
+    setIsResending(true);
+    setResendMessage('');
+    const { success, error } = await resendConfirmationEmail(user.email);
+    if (success) {
+      setResendMessage('Link de confirmação reenviado com sucesso!');
+    } else {
+      setResendMessage(error || 'Ocorreu um erro ao reenviar o email.');
+    }
+    setIsResending(false);
+  };
+  
   // --- COMPONENTES VISUAIS ---
-
   const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: string | number, icon: React.ElementType, color: string }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex items-center justify-between">
@@ -81,13 +90,32 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
+      {/* 5. NOVO BANNER CONDICIONAL */}
+      {user && !user.email_confirmed_at && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-6" role="alert">
+          <div className="flex">
+            <div className="py-1"><AlertTriangle className="h-6 w-6 text-yellow-500 mr-4" /></div>
+            <div>
+              <p className="font-bold">Confirme seu endereço de email</p>
+              <p className="text-sm">Para garantir o pleno funcionamento do AgendPro e habilitar sua página pública de agendamentos, por favor, clique no link que enviamos para <strong>{user.email}</strong>.</p>
+              <div className="mt-2">
+                <button onClick={handleResendEmail} disabled={isResending} className="text-sm font-medium text-yellow-800 hover:text-yellow-900 disabled:opacity-50">
+                  {isResending ? 'Reenviando...' : 'Reenviar email de confirmação'}
+                </button>
+                {resendMessage && <span className="ml-4 text-sm">{resendMessage}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Painel Administrativo</h1>
         <p className="text-gray-600">Visão geral do seu negócio em tempo real</p>
       </div>
 
-      {/* Stats Grid - Métricas Principais */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Agendamentos Hoje" value={todayAppointments.length} icon={Calendar} color="blue" />
         <StatCard title="Concluídos (mês)" value={completedAppointmentsThisMonth.length} icon={CheckCircle} color="green" />
@@ -95,16 +123,14 @@ export default function Dashboard() {
         <StatCard title="Taxa de Conclusão" value={`${completionRateThisMonth}%`} icon={TrendingUp} color="orange" />
       </div>
 
-      {/* Content Grid - Ações e Agendamentos */}
+      {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coluna da Esquerda: Ações */}
         <div className="lg:col-span-1 space-y-6">
           <ActionCard title="Ver Agenda" subtitle="Visualize e gerencie agendamentos" icon={Calendar} color="blue" path="/schedule" />
           <ActionCard title="Clientes" subtitle="Gerencie sua base de clientes" icon={Users} color="purple" path="/clients" />
           <ActionCard title="Configurações" subtitle="Ajuste seu perfil e negócio" icon={SettingsIcon} color="gray" path="/settings" />
         </div>
 
-        {/* Coluna da Direita: Agendamentos de Hoje */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center">
             <div>
@@ -127,7 +153,7 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {todayAppointments
                   .sort((a, b) => (a.hora_agendamento || '').localeCompare(b.hora_agendamento || ''))
-                  .slice(0, 5) // Mostra no máximo 5 agendamentos aqui
+                  .slice(0, 5)
                   .map((appointment) => {
                     const client = clients.find(c => c.id === appointment.cliente_id);
                     return (

@@ -13,7 +13,8 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<Usuario>) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>; 
-}
+   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; error?: string }>; 
+  }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -167,6 +168,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Erro inesperado ao atualizar perfil' };
     }
   }, [user, loadUserProfile]);
+
+  const resendConfirmationEmail = useCallback(async (email: string): Promise<{ success: boolean; error?: string; }> => {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  }, []);
   
   const memoizedValue = useMemo(() => ({
     user,
