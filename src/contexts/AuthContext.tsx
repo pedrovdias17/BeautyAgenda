@@ -8,7 +8,7 @@ interface AuthContextType {
   session: Session | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (email: string, password: string, nome: string, nomeStudio: string, slug: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (email: string, password: string, nome: string, nomeDoNegocio: string, slug: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<Usuario>) => Promise<{ success: boolean; error?: string }>;
@@ -93,18 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // --- FUNÇÃO SIGNUP CORRIGIDA ---
-  const signup = useCallback(async (email: string, password: string, nome: string, nomeStudio: string, slug: string): Promise<{ success: boolean; error?: string; }> => {
+  // --- FUNÇÃO SIGNUP ATUALIZADA ---
+  const signup = useCallback(async (email: string, password: string, nome: string, nomeDoNegocio: string, slug: string): Promise<{ success: boolean; error?: string; }> => {
     try {
         const { data, error } = await supabase.auth.signUp({
           email: email,
           password: password,
           options: {
-            // A mágica acontece aqui: passamos os dados extras para o Supabase
-            // O gatilho no banco de dados vai usar esses dados para criar o perfil.
             data: {
               nome: nome,
-              nome_studio: nomeStudio,
+              nome_do_negocio: nomeDoNegocio, // MUDANÇA AQUI
               slug: slug
             }
           }
@@ -117,11 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: error.message };
         }
 
-        if (!data.user) {
-            return { success: false, error: 'Não foi possível criar a conta.' };
+        if (!data.user && !data.session) {
+             alert('Conta criada com sucesso! Enviamos um link de confirmação para o seu email.');
+             return { success: true };
         }
         
-        alert('Conta criada com sucesso! Enviamos um link de confirmação para o seu email.');
         return { success: true };
 
     } catch (error) {
@@ -131,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   
   const resetPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string; }> => {
-     const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + '/update-password',
     });
     if (error) {
@@ -140,21 +138,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, []);
 
+  // --- FUNÇÃO updateProfile ATUALIZADA ---
   const updateProfile = useCallback(async (data: Partial<Usuario>): Promise<{ success: boolean; error?: string; }> => {
     if (!user) {
       return { success: false, error: 'Usuário não autenticado' };
     }
     try {
-      const { email, ...updateData } = data; // Garante que o email não será alterado
+      // Renomeia a chave de 'nome_studio' para 'nome_do_negocio' antes de enviar
+      const { nome_studio, ...restOfData } = data;
+      const updateData = {
+        ...restOfData,
+        ...(nome_studio && { nome_do_negocio: nome_studio }) // Mapeia se existir
+      };
+
       const { error } = await supabase
         .from('usuarios')
         .update(updateData)
         .eq('id', user.id);
+        
       if (error) {
         console.error('Erro ao atualizar perfil:', error);
         return { success: false, error: error.message };
       }
-      await loadUserProfile(user.id); // Recarrega os dados para a UI
+      await loadUserProfile(user.id);
       return { success: true };
     } catch (err: any) {
       console.error("Erro inesperado ao atualizar perfil:", err);
