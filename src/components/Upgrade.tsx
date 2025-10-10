@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { loadStripe } from '@stripe/stripe-js';
 import { 
   Crown, 
   Check, 
@@ -10,9 +11,15 @@ import {
   Shield,
   Clock,
   Users,
-  BarChart3,
-  Smartphone
+  BarChart3
 } from 'lucide-react';
+
+
+const stripePromise = loadStripe('pk_live_51RxWVc0jIp6LpHNPkv3p5ODH8IxHhHzYaFF9Ony6LwdJsf1JIHSDnKULNAILkY86OospBxYY7IaUeXF2Xm5vvtuR00CJVK1VU9');
+
+// 2. Cole o ID do Preço do plano de R$ 47 que você criou no Stripe.
+const PRICE_ID = 'price_1SGZI10jIp6LpHNPujNaBzCM'; // Ex: 'price_1P9Xq...'
+
 
 export default function Upgrade() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -56,36 +63,43 @@ export default function Upgrade() {
     }
   ];
 
+  // --- FUNÇÃO handleUpgrade ATUALIZADA ---
   const handleUpgrade = async () => {
     setIsProcessing(true);
     
     try {
       if (!usuario) {
-        alert('Erro: usuário não encontrado');
-        return;
+        throw new Error('Usuário não encontrado. Por favor, faça login novamente.');
       }
 
-      // Chamar função do Supabase para criar assinatura
-      const { data, error } = await supabase.functions.invoke('criar-assinatura', {
-        body: { usuarioId: usuario.id }
+      // Chama nossa Edge Function para criar a sessão de checkout
+      const { data, error: functionError } = await supabase.functions.invoke('create-checkout-session', {
+        body: { 
+          priceId: PRICE_ID,
+          userId: usuario.id 
+        }
       });
 
-      if (error) {
-        console.error('Erro ao criar assinatura:', error);
-        alert('Erro ao criar assinatura. Tente novamente.');
-        return;
+      if (functionError) throw functionError;
+      if (!data.sessionId) throw new Error("Não foi possível obter o ID da sessão de checkout.");
+
+      // Usa a biblioteca do Stripe para redirecionar de forma segura
+      const stripe = await stripePromise;
+      if (!stripe) throw new Error("Stripe.js não foi carregado.");
+
+      const { error: stripeError } = await stripe.redirectToCheckout({
+        sessionId: data.sessionId,
+      });
+
+      if (stripeError) {
+        // Este erro geralmente só acontece se houver um problema de rede ou configuração do lado do cliente.
+        // O cliente não será redirecionado se houver um erro aqui.
+        throw new Error(`Erro ao redirecionar para o checkout: ${stripeError.message}`);
       }
 
-      // Redirecionar para página de pagamento do Mercado Pago
-      if (data.subscriptionUrl) {
-        window.location.href = data.subscriptionUrl;
-      } else {
-        alert('Erro ao gerar link de pagamento');
-      }
-    } catch (error) {
-      console.error('Erro inesperado:', error);
-      alert('Erro inesperado. Tente novamente.');
-    } finally {
+    } catch (error: any) {
+      console.error('Erro no processo de upgrade:', error);
+      alert(`Erro: ${error.message}`);
       setIsProcessing(false);
     }
   };
@@ -132,21 +146,16 @@ export default function Upgrade() {
               })}
             </div>
 
-            {/* Testimonial */}
             <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
               <div className="flex items-center space-x-4 mb-4">
-                <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
-                  M
-                </div>
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold"> M </div>
                 <div>
                   <p className="font-semibold text-gray-900">Maria Silva</p>
                   <p className="text-sm text-gray-600">Salão Beleza Pura - São Paulo</p>
                 </div>
               </div>
               <p className="text-gray-700 italic">
-                "Desde que comecei a usar o AgendPro, meus no-shows caíram 90%. 
-                O pagamento automático do sinal mudou completamente meu negócio. 
-                Agora tenho mais tempo para focar no que realmente importa: meus clientes!"
+                "Desde que comecei a usar o AgendPro, meus no-shows caíram 90%. O pagamento automático do sinal mudou completamente meu negócio. Agora tenho mais tempo para focar no que realmente importa: meus clientes!"
               </p>
             </div>
           </div>
@@ -169,33 +178,15 @@ export default function Upgrade() {
                   <p className="text-sm font-semibold text-yellow-600 mt-2">Oferta de Lançamento!</p>
                 </div>
                 
-                <p className="text-gray-600 mb-6">
-                  Sem taxa de setup • Cancele quando quiser
-                </p>
+                <p className="text-gray-600 mb-6"> Sem taxa de setup • Cancele quando quiser </p>
 
                 <div className="space-y-3 text-left mb-8">
-                  <div className="flex items-center space-x-3">
-                    <Check size={16} className="text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Agendamentos ilimitados</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Check size={16} className="text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Clientes ilimitados</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Check size={16} className="text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Lembretes automáticos</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Check size={16} className="text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Pagamento de sinais</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Check size={16} className="text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Suporte prioritário</span>
-                  </div>
+                  <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Agendamentos ilimitados</span></div>
+                  <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Clientes ilimitados</span></div>
+                  <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Lembretes automáticos</span></div>
+                  <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Pagamento de sinais</span></div>
+                  <div className="flex items-center space-x-3"><Check size={16} className="text-green-600 flex-shrink-0" /><span className="text-sm text-gray-700">Suporte prioritário</span></div>
                 </div>
-
 
                 <button
                   onClick={handleUpgrade}
@@ -205,16 +196,13 @@ export default function Upgrade() {
                   {isProcessing ? 'Processando...' : 'Assinar Agora'}
                 </button>
 
-                <p className="text-xs text-gray-500 mt-4">
-                  Pagamento seguro • SSL 256-bit
-                </p>
+                <p className="text-xs text-gray-500 mt-4"> Pagamento seguro • SSL 256-bit </p>
               </div>
 
               <div className="border-t border-gray-100 pt-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Garantia de 30 dias</h4>
                 <p className="text-sm text-gray-600">
-                  Se não ficar satisfeito, devolvemos 100% do seu dinheiro. 
-                  Sem perguntas, sem complicações.
+                  Se não ficar satisfeito, devolvemos 100% do seu dinheiro. Sem perguntas, sem complicações.
                 </p>
               </div>
             </div>
@@ -226,47 +214,11 @@ export default function Upgrade() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
             Perguntas Frequentes
           </h2>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">
-                Posso cancelar a qualquer momento?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Sim! Você pode cancelar sua assinatura a qualquer momento, 
-                sem multas ou taxas adicionais.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">
-                Meus dados ficam seguros?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Absolutamente! Utilizamos criptografia de nível bancário 
-                e backup automático para proteger suas informações.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">
-                Preciso de conhecimento técnico?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Não! Nossa plataforma é super intuitiva. Em 5 minutos 
-                você já estará recebendo agendamentos.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">
-                Funciona no celular?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Sim! Tanto você quanto seus clientes podem usar 
-                pelo celular, tablet ou computador.
-              </p>
-            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-2">Posso cancelar a qualquer momento?</h3><p className="text-sm text-gray-600">Sim! Você pode cancelar sua assinatura a qualquer momento, sem multas ou taxas adicionais.</p></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-2">Meus dados ficam seguros?</h3><p className="text-sm text-gray-600">Absolutamente! Utilizamos criptografia de nível bancário e backup automático para proteger suas informações.</p></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-2">Preciso de conhecimento técnico?</h3><p className="text-sm text-gray-600">Não! Nossa plataforma é super intuitiva. Em 5 minutos você já estará recebendo agendamentos.</p></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-2">Funciona no celular?</h3><p className="text-sm text-gray-600">Sim! Tanto você quanto seus clientes podem usar pelo celular, tablet ou computador.</p></div>
           </div>
         </div>
       </div>

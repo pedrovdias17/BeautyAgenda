@@ -18,8 +18,8 @@ import SubscriptionGuard from './components/SubscriptionGuard';
 import Appointments from './pages/Appointments';
 import AppointmentDetails from './pages/AppointmentDetails';
 import PublicBooking from './pages/PublicBooking';
-import PaymentSuccess from './pages/PaymentSuccess';
-import PaymentCancel from './pages/PaymentCancel';
+import PaymentSuccess from './pages/PaymentSuccess'; // 1. NOVA IMPORTAÇÃO
+import PaymentCancel from './pages/PaymentCancel';   // 1. NOVA IMPORTAÇÃO
 import ClientLogin from './pages/ClientLogin';
 import ClientArea from './pages/ClientArea';
 
@@ -46,8 +46,6 @@ function AdminArea() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
-        {/* 2. A MÁGICA ACONTECE AQUI! */}
-        {/* O Segurança agora protege TODAS as rotas abaixo dele */}
         <SubscriptionGuard>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -59,6 +57,10 @@ function AdminArea() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/upgrade" element={<Upgrade />} />
             <Route path="/legal" element={<Legal />} />
+
+            {/* 2. NOVAS ROTAS ADICIONADAS */}
+            <Route path="/payment/success" element={<PaymentSuccess />} />
+            <Route path="/payment/cancel" element={<PaymentCancel />} />
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
