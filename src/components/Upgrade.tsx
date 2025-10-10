@@ -32,7 +32,7 @@ export default function Upgrade() {
     {
       icon: Bell,
       title: 'Lembretes Automáticos',
-      description: 'WhatsApp e SMS automáticos para lembrar seus clientes dos agendamentos'
+      description: 'Notificações automáticas por e-mail para lembrar seus clientes dos agendamentos'
     },
     {
       icon: Users,
@@ -41,13 +41,8 @@ export default function Upgrade() {
     },
     {
       icon: BarChart3,
-      title: 'Relatórios Detalhados',
-      description: 'Acompanhe sua receita, taxa de comparecimento e crescimento do negócio'
-    },
-    {
-      icon: Smartphone,
-      title: 'App Mobile',
-      description: 'Gerencie seus agendamentos pelo celular, onde quer que esteja'
+      title: 'Dashboard com Métricas',
+      description: 'Acompanhe os principais indicadores do seu negócio, como faturamento e agendamentos concluídos, em tempo real.'
     },
     {
       icon: Shield,
@@ -166,8 +161,12 @@ export default function Upgrade() {
                 </div>
                 
                 <div className="mb-4">
-                  <span className="text-5xl font-bold text-gray-900">R$ 47</span>
-                  <span className="text-xl text-gray-600">/mês</span>
+                  <div className="flex items-baseline justify-center">
+                    <span className="text-2xl font-medium text-gray-500 line-through mr-2">R$ 67</span>
+                    <span className="text-5xl font-bold text-gray-900">R$ 47</span>
+                    <span className="text-xl text-gray-600 ml-1">/mês</span>
+                  </div>
+                  <p className="text-sm font-semibold text-yellow-600 mt-2">Oferta de Lançamento!</p>
                 </div>
                 
                 <p className="text-gray-600 mb-6">
@@ -196,6 +195,7 @@ export default function Upgrade() {
                     <span className="text-sm text-gray-700">Suporte prioritário</span>
                   </div>
                 </div>
+
 
                 <button
                   onClick={handleUpgrade}
