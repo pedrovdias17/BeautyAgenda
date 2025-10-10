@@ -62,7 +62,7 @@ export default function PublicBooking() {
       
       const { data: owner, error: ownerError } = await supabase
         .from('usuarios')
-        .select('id, nome_studio, endereco, telefone, configuracoes')
+        .select('id, nome_do_negocio, endereco, telefone, configuracoes')
         .eq('slug', slug)
         .single();
 
@@ -74,7 +74,7 @@ export default function PublicBooking() {
       }
 
       setStudioInfo({
-        name: owner.nome_studio,
+        name: owner.nome_do_negocio,
         address: owner.endereco || 'Endereço não informado',
         phone: owner.telefone || 'Telefone não informado'
       });
@@ -277,19 +277,30 @@ export default function PublicBooking() {
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
+  // --- FUNÇÃO handleSubmit ATUALIZADA ---
   const handleSubmit = async () => {
-    if (!clientData.name.trim() || !clientData.phone.trim()) {
-      alert('Por favor, preencha seu nome e telefone.'); return;
+    // Validação unificada
+    if (!clientData.name.trim() || !clientData.phone.trim() || !clientData.email.trim()) {
+      alert('Por favor, preencha todos os seus dados.');
+      return;
     }
+
+    // Validação do telefone
     const phoneDigits = clientData.phone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
-      alert('Por favor, digite um telefone válido com DDD.'); return;
+      alert('Por favor, digite um telefone válido com DDD.');
+      return;
     }
-    if (clientData.email && !/\S+@\S+\.\S+/.test(clientData.email)) {
-      alert('Por favor, digite um email válido.'); return;
+
+    // Validação do email
+    if (!/\S+@\S+\.\S+/.test(clientData.email)) {
+      alert('Por favor, digite um email válido.');
+      return;
     }
+
     if (!selectedService || !selectedProfessional || !selectedDate || !selectedTime || !ownerId) {
-      alert('Por favor, preencha todos os dados do agendamento.'); return;
+      alert('Ocorreu um erro. Por favor, tente recomeçar o agendamento.');
+      return;
     }
 
     setIsSubmitting(true);
@@ -384,7 +395,6 @@ export default function PublicBooking() {
               <div className="space-y-4">
                 {services.map((service) => (
                     <button key={service.id} onClick={() => handleServiceSelect(service.id)} className={`w-full p-4 border rounded-lg text-left transition-colors ${selectedService === service.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      {/* --- LINHAS ALTERADAS --- */}
                       <div className="flex justify-between items-center">
                         <h3 className="font-medium text-gray-900">{service.name}</h3>
                         <span className="font-semibold text-green-600 text-lg">
@@ -464,9 +474,10 @@ export default function PublicBooking() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label>
                   <input name="phone" type="tel" required value={clientData.phone} onChange={handleClientDataChange} maxLength={15} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="(11) 99999-9999"/>
                 </div>
+                {/* --- CAMPO DE EMAIL ATUALIZADO --- */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email (opcional)</label>
-                  <input name="email" type="email" value={clientData.email} onChange={handleClientDataChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="seu@email.com"/>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input name="email" type="email" required value={clientData.email} onChange={handleClientDataChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="seu@email.com"/>
                 </div>
               </div>
               <div className="mt-6 flex justify-between">
